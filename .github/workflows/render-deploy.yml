@@ -1,0 +1,31 @@
+name: Deploy to Render
+
+# Auto-deploy chain: push to main -> this workflow -> Render API deploy trigger.
+# The repo is connected to Render by public URL (no GitHub App webhook), so
+# GitHub Actions bridges the gap. RENDER_API_KEY is stored as an encrypted
+# repo secret; only Actions can read it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: render-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          set -e
+          echo "Triggering deploy for zerox-bypass-panel (srv-dbq5q2ff3r2c738u2tjg)..."
+          resp=$(curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            https://api.render.com/v1/services/srv-dbq5q2ff3r2c738u2tjg/deploys \
+            -d '{}')
+          echo "$resp" | head -c 300; echo
+          echo "$resp" | grep -q '"id"' || { echo "::error::Render deploy trigger failed"; exit 1; }
+          echo "Render deploy triggered successfully."
