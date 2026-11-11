@@ -4,11 +4,21 @@
  * tiny file is plenty for a hobby panel.
  *
  * Never import this module from client code — only inside createServerFn
- * handlers (dynamic import) and server route handlers. */
+ * handlers (dynamic import) and server route handlers.
+ *
+ * node:crypto is imported lazily inside each function (never at module top
+ * level) so TanStack Start's build-time analyzer never sees it and never
+ * tries to bundle it for the client. */
 
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Db, DbUser, UserRow } from "./types";
 import type { Profile } from "@/lib/zx";
+
+/* Lazy crypto loader: imported per-function, never at module top level. */
+let _crypto: typeof import("node:crypto") | null = null;
+async function crypto(): Promise<typeof import("node:crypto")> {
+  if (!_crypto) _crypto = await import("node:crypto");
+  return _crypto;
+}
 
 /* ------------------------------ configuration ----------------------------- */
 
@@ -28,23 +38,28 @@ export function storageError(): string {
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 };
 
 /** scrypt hash, format: scrypt:N:r:p:saltB64:hashB64 */
-export function hashPassword(pw: string): string {
+export async function hashPassword(pw: string): Promise<string> {
+  const { randomBytes, scryptSync } = await crypto();
   const salt = randomBytes(16);
   const hash = scryptSync(pw, salt, SCRYPT.keylen, SCRYPT);
   return `scrypt:${SCRYPT.N}:${SCRYPT.r}:${SCRYPT.p}:${salt.toString("base64")}:${hash.toString("base64")}`;
 }
 
-export function verifyPassword(pw: string, stored: string): boolean {
+export async function verifyPassword(pw: string, stored: string): Promise<boolean> {
   try {
     const parts = stored.split(":");
     if (parts.length !== 6 || parts[0] !== "scrypt") return false;
     const [, N, r, p, saltB64, hashB64] = parts;
+    const { scryptSync, timingSafeEqual, Buffer } = await crypto();
     const hash = scryptSync(pw, Buffer.from(saltB64!, "base64"), SCRYPT.keylen, {
       N: +(N!),
       r: +(r!),
       p: +(p!),
     });
-    return hash.length === Buffer.from(hashB64!, "base64").length && timingSafeEqual(hash, Buffer.from(hashB64!, "base64"));
+    return (
+      hash.length === Buffer.from(hashB64!, "base64").length &&
+      timingSafeEqual(hash, Buffer.from(hashB64!, "base64"))
+    );
   } catch {
     return false;
   }
@@ -55,17 +70,19 @@ export function verifyPassword(pw: string, stored: string): boolean {
 const TOKEN_DAYS = 7;
 
 /** HMAC-signed session token: base64url(payload).base64url(hmac) */
-export function signToken(userId: string): string {
+export async function signToken(userId: string): Promise<string> {
+  const { createHmac } = await crypto();
   const payload = { uid: userId, exp: Date.now() + TOKEN_DAYS * 86_400_000 };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = createHmac("sha256", SESSION_SECRET()).update(body).digest("base64url");
   return `${body}.${sig}`;
 }
 
-export function verifyToken(token: string): { uid: string } | null {
+export async function verifyToken(token: string): Promise<{ uid: string } | null> {
   try {
     const [body, sig] = token.split(".");
     if (!body || !sig) return null;
+    const { createHmac, timingSafeEqual, Buffer } = await crypto();
     const want = createHmac("sha256", SESSION_SECRET()).update(body).digest("base64url");
     const a = Buffer.from(sig);
     const b = Buffer.from(want);
@@ -121,7 +138,7 @@ function defaultDb(): Db {
       {
         id: "u_1",
         username: "owner",
-        password_hash: hashPassword("owner123"),
+        password_hash: "PLACEHOLDER",
         role: "owner",
         status: "active",
         balance: 999_999_999,
@@ -153,6 +170,7 @@ function defaultDb(): Db {
 }
 
 async function putDb(db: Db, sha: string | null, message: string): Promise<string> {
+  const { Buffer } = await crypto();
   const res = await gh(`/repos/${DATA_REPO()}/contents/${DB_PATH}`, {
     method: "PUT",
     body: JSON.stringify({
@@ -179,6 +197,7 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
   if (res.status === 404) {
     // First ever run: create the database with the default owner (owner/owner123).
     const db = defaultDb();
+    db.users[0].password_hash = await hashPassword("owner123");
     const sha = await putDb(db, null, "Bootstrap panel database");
     cache = { at: Date.now(), sha, db };
     return { db, sha };
@@ -187,6 +206,7 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
   const json = (await res.json()) as { sha: string; content: string; encoding: string };
   let db: Db;
   try {
+    const { Buffer } = await crypto();
     db = JSON.parse(Buffer.from(json.content.replace(/\s/g, ""), "base64").toString("utf8")) as Db;
   } catch {
     throw new Error("db.json is corrupted (invalid JSON) — fix it in the zerox-panel-data repo.");
@@ -270,7 +290,8 @@ export function addTx(
 }
 
 /** Random referral/license code without look-alike characters. */
-export function randomCode(len: number): string {
+export async function randomCode(len: number): Promise<string> {
+  const { randomBytes } = await crypto();
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   let out = "";
   const bytes = randomBytes(len);
@@ -278,10 +299,10 @@ export function randomCode(len: number): string {
   return out;
 }
 
-export function licenseKey(): string {
-  return `ZX${randomCode(4)}-${randomCode(4)}-${randomCode(4)}`;
+export async function licenseKey(): Promise<string> {
+  return `ZX${await randomCode(4)}-${await randomCode(4)}-${await randomCode(4)}`;
 }
 
-export function referralCode(): string {
-  return `ZX${randomCode(6)}`;
+export async function referralCode(): Promise<string> {
+  return `ZX${await randomCode(6)}`;
 }

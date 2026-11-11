@@ -28,15 +28,15 @@ export const loginAccount = createServerFn({ method: "POST" })
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
     const { db } = await s.readDb();
     const u = s.findUser(db, data.username);
-    if (!u || !s.verifyPassword(data.password, u.password_hash)) return { ok: false, error: "Wrong username or password" };
+    if (!u || !(await s.verifyPassword(data.password, u.password_hash))) return { ok: false, error: "Wrong username or password" };
     if (u.status === "banned") return { ok: false, error: "This account is banned. Contact the Owner." };
     if (u.status === "blocked") return { ok: false, error: "This account is blocked. Contact the Owner." };
     // Touch last-seen (cheap single write, only on a successful login).
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const x = s.findUser(d2, u.username);
       if (x) x.last_active_at = new Date().toISOString();
     }, `login: ${u.username}`);
-    return { ok: true, token: s.signToken(u.id), me: meOf(u) };
+    return { ok: true, token: await s.signToken(u.id), me: meOf(u) };
   });
 
 export const registerAccount = createServerFn({ method: "POST" })
@@ -62,7 +62,7 @@ export const registerAccount = createServerFn({ method: "POST" })
     if (s.findUser(db, data.username)) return { ok: false, error: "Username already taken" };
 
     let out: LoginResult = { ok: false, error: "Registration failed — try again" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       // Re-check inside the mutation (atomic against concurrent signups).
       const r = d2.referrals.find((x) => x.code === code);
       if (!r || r.revoked || r.uses >= r.max_uses || new Date(r.expires_at).getTime() <= Date.now()) return;
@@ -74,7 +74,7 @@ export const registerAccount = createServerFn({ method: "POST" })
       const user: DbUser = {
         id: `u_${s.nextId(d2, "user")}`,
         username: data.username.trim(),
-        password_hash: s.hashPassword(data.password),
+        password_hash: await s.hashPassword(data.password),
         role: r.role,
         status: "active",
         balance: r.credit,
@@ -90,7 +90,7 @@ export const registerAccount = createServerFn({ method: "POST" })
       r.uses += 1;
       r.redemptions.push({ username: user.username, at: now });
       s.addTx(d2, user, "account_created", `Registered with code ${r.code} (uplink ${r.created_by_name})`, 0, user.balance);
-      out = { ok: true, token: s.signToken(user.id), me: meOf(user) };
+      out = { ok: true, token: await s.signToken(user.id), me: meOf(user) };
     }, `register: ${data.username}`);
     return out;
   });
@@ -100,7 +100,7 @@ export const meAccount = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true; me: Me } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired" };
     const { db } = await s.readDb();
     const u = db.users.find((x) => x.id === v.uid);
@@ -115,13 +115,13 @@ export const changeMyPassword = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const { db } = await s.readDb();
     const me = db.users.find((x) => x.id === v.uid);
-    if (!me || !s.verifyPassword(data.current, me.password_hash)) return { ok: false, error: "Current password is wrong" };
-    const hash = s.hashPassword(data.next);
-    await s.mutateDb((d2) => {
+    if (!me || !(await s.verifyPassword(data.current, me.password_hash))) return { ok: false, error: "Current password is wrong" };
+    const hash = await s.hashPassword(data.next);
+    await s.mutateDb(async (d2) => {
       const x = d2.users.find((u) => u.id === me.id);
       if (x) x.password_hash = hash;
     }, `password change: ${me.username}`);
@@ -144,7 +144,7 @@ export const ownerCreateUser = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true; username: string } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const { db } = await s.readDb();
     const me = db.users.find((x) => x.id === v.uid);
@@ -152,9 +152,9 @@ export const ownerCreateUser = createServerFn({ method: "POST" })
     if (s.findUser(db, data.username)) return { ok: false, error: "Username already taken" };
 
     const now = new Date().toISOString();
-    const hash = s.hashPassword(data.password);
+    const hash = await s.hashPassword(data.password);
     let out: { ok: true; username: string } | Fail = { ok: false, error: "Could not create the account" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       if (s.findUser(d2, data.username)) {
         out = { ok: false, error: "Username already taken" };
         return;
@@ -186,14 +186,14 @@ export const ownerSetPassword = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const { db } = await s.readDb();
     const me = db.users.find((x) => x.id === v.uid);
     if (!me || me.role !== "owner") return { ok: false, error: "Only the Owner can set passwords" };
-    const hash = s.hashPassword(data.password);
+    const hash = await s.hashPassword(data.password);
     let out: { ok: true } | Fail = { ok: false, error: "User not found" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === data.userId);
       if (!u) return;
       u.password_hash = hash;
@@ -207,7 +207,7 @@ export const ownerDeleteUser = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const { db } = await s.readDb();
     const me = db.users.find((x) => x.id === v.uid);
@@ -218,7 +218,7 @@ export const ownerDeleteUser = createServerFn({ method: "POST" })
     if (target.role === "owner" && db.users.filter((u) => u.role === "owner").length <= 1)
       return { ok: false, error: "Cannot delete the last Owner account" };
 
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       d2.users = d2.users.filter((u) => u.id !== data.userId);
     }, `owner delete user: ${target.username}`);
     return { ok: true };
@@ -240,7 +240,7 @@ export const ownerUpdateUser = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const { db } = await s.readDb();
     const me = db.users.find((x) => x.id === v.uid);
@@ -251,7 +251,7 @@ export const ownerUpdateUser = createServerFn({ method: "POST" })
       return { ok: false, error: "Cannot demote the last Owner account" };
     if (target.id === me.id && data.status !== "active") return { ok: false, error: "You cannot block or ban yourself" };
 
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === data.userId);
       if (!u) return;
       u.role = data.role;
@@ -278,7 +278,7 @@ export const ownerAdjustBalance = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true; balance: number } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const { db } = await s.readDb();
     const me = db.users.find((x) => x.id === v.uid);
@@ -288,7 +288,7 @@ export const ownerAdjustBalance = createServerFn({ method: "POST" })
     if (target.role === "owner") return { ok: false, error: "Owner balance is unlimited — nothing to adjust" };
 
     let out: { ok: true; balance: number } | Fail = { ok: false, error: "Could not adjust balance" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === data.userId);
       if (!u || u.role === "owner") return;
       const before = u.balance;
@@ -314,11 +314,11 @@ export const fpRegister = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true; until: string } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const until = fpUntil();
     let out: { ok: true; until: string } | Fail = { ok: false, error: "Session expired" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === v.uid);
       if (!u) return;
       u.passkey = { id: data.credentialId, expires_at: until };
@@ -338,11 +338,11 @@ export const fpLogin = createServerFn({ method: "POST" })
     if (u.passkey && new Date(u.passkey.expires_at).getTime() <= Date.now())
       return { ok: false, error: "Fingerprint expired — log in with your password, then renew it.", code: "EXPIRED" };
     if (u.status !== "active") return { ok: false, error: "This account is not active.", code: "UNKNOWN" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const x = d2.users.find((y) => y.id === u.id);
       if (x) x.last_active_at = new Date().toISOString();
     }, `fingerprint login: ${u.username}`);
-    return { ok: true, token: s.signToken(u.id), me: meOf(u) };
+    return { ok: true, token: await s.signToken(u.id), me: meOf(u) };
   });
 
 export const fpRenew = createServerFn({ method: "POST" })
@@ -350,11 +350,11 @@ export const fpRenew = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true; until: string } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const until = fpUntil();
     let out: { ok: true; until: string } | Fail = { ok: false, error: "Fingerprint not found on your account" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === v.uid);
       if (!u || u.passkey?.id !== data.credentialId) return;
       u.passkey = { id: data.credentialId, expires_at: until };
@@ -368,9 +368,9 @@ export const fpUnregister = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
-    const v = s.verifyToken(data.token);
+    const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
-    await s.mutateDb((d2) => {
+    await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === v.uid);
       if (u) u.passkey = null;
     }, "fingerprint removed");

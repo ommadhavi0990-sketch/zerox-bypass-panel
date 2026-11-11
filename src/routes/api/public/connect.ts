@@ -116,7 +116,8 @@ export const Route = createFileRoute("/api/public/connect")({
             const k = d2.keys.find((x) => x.id === key.id);
             if (k && !k.devices.includes(parsed.serial)) k.devices.push(parsed.serial);
           }, `connect bind device for ${parsed.user_key}`);
-          const bound = (await s.readDb()).db.keys.find((x) => x.license_key === parsed.user_key);
+        }
+        const bound = (await s.readDb()).db.keys.find((x) => x.license_key === parsed.user_key);
 
         return json({
           status: true,
