@@ -71,12 +71,13 @@ export const Route = createFileRoute("/api/public/connect")({
         return json({ status: false, reason: "NO_KEY", message: "Send user_key + serial to validate a license key" }, 200);
       },
       POST: async ({ request }) => {
-        const s = await import("@/lib/gh-store.server");
-        if (!s.storageConfigured()) {
-          return json({ status: false, reason: "CONFIG", message: "Panel storage not configured on server" }, 200);
-        }
+        try {
+          const s = await import("@/lib/gh-store.server");
+          if (!s.storageConfigured()) {
+            return json({ status: false, reason: "CONFIG", message: "Panel storage not configured on server" }, 200);
+          }
 
-        const params = normalise(await readParams(request));
+          const params = normalise(await readParams(request));
         let parsed: { game: string; user_key: string; serial: string };
         try {
           parsed = Input.parse(params);
@@ -128,6 +129,9 @@ export const Route = createFileRoute("/api/public/connect")({
           devices: bound?.devices ?? key.devices,
           max_devices: key.max_devices,
         }, 200);
+        } catch (err) {
+          return json({ status: false, reason: "SERVER_ERROR", message: String(err) }, 200);
+        }
       },
     },
   },
