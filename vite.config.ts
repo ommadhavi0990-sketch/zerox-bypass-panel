@@ -15,4 +15,7 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Self-host builds (Render/VPS) target a plain Node server.
+  // Lovable/Cloudflare sandbox builds ignore this and stay on cloudflare-module.
+  nitro: { preset: "node-server" },
 });
