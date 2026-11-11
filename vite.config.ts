@@ -10,7 +10,6 @@ export default defineConfig(({ command }) => ({
   plugins: [
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
     tailwindcss(),
-    react(),
     tanstackStart({
       // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
       // nitro/vite builds from this.
@@ -23,6 +22,7 @@ export default defineConfig(({ command }) => ({
         },
       },
     }),
+    react(),
     // Self-host builds target a plain Node server (Render / VPS / Docker).
     ...(command === "build" ? [nitro({ preset: "node-server" })] : []),
   ],
