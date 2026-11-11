@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Card, CardHeader, Field, Loader, PageGrid, copyText } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
 import { pricesQuery, getToken } from "@/lib/queries";
-import { keysGenerate } from "@/lib/data.functions";
+import { keysGenerate } from "@/lib/queries";
 import { BULK_OPTIONS, durationLabel, GAMES, inr, keyBatchCost } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/keys/generate")({
@@ -43,16 +43,7 @@ function GeneratePage() {
     if (custom && canBulkCustom && customKey.trim().length < 4) return toast.error("Custom key name must be at least 4 characters");
     setBusy(true);
     try {
-      const r = await keysGenerate({
-        data: {
-          token,
-          game,
-          hours: selected,
-          devices,
-          qty,
-          ...(custom && canBulkCustom && customKey.trim() ? { customKey: customKey.trim() } : {}),
-        },
-      });
+      const r = await keysGenerate({ token, game, hours: selected, devices, qty, ...(custom && canBulkCustom && customKey.trim() ? { customKey: customKey.trim() } : {}) });
       if (!r.ok) {
         toast.error(r.error);
         return;

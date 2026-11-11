@@ -5,7 +5,7 @@ import { DmButton, AuthHead } from "@/components/zx/Shell";
 import { Card } from "@/components/zx/ui";
 import { errMsg, USERNAME_RE } from "@/lib/zx";
 import { clearLegacyLocalData, getToken, setToken } from "@/lib/queries";
-import { fpLogin, loginAccount } from "@/lib/auth.functions";
+import { fpLogin, loginAccount } from "@/lib/queries";
 import {
   clearFpDevice,
   fpDeviceActive,
@@ -75,7 +75,7 @@ function LoginPage() {
       // The phone's biometric prompt is the local verification.
       await unlockLocalPasskey(dev.id);
       // The panel then swaps it for a real server session.
-      const r = await fpLogin({ data: { credentialId: dev.id } });
+      const r = await fpLogin({ credentialId: dev.id });
       if (!r.ok) {
         if (r.code === "UNKNOWN") {
           clearFpDevice();
@@ -104,7 +104,7 @@ function LoginPage() {
     if (password.length < 6) return setError("Password must be at least 6 characters");
     setBusy(true);
     try {
-      const r = await loginAccount({ data: { username: username.trim(), password } });
+      const r = await loginAccount({ username: username.trim(), password });
       if (!r.ok) {
         setError(r.error);
         return;

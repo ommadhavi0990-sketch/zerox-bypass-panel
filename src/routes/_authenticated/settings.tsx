@@ -3,8 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, Field, PageGrid } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
-import { getToken } from "@/lib/queries";
-import { changeMyPassword } from "@/lib/auth.functions";
+import { changeMyPassword, getToken } from "@/lib/queries";
 import { errMsg, fmtDate, inr, ROLE_LABEL, usernameToEmail } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -33,7 +32,7 @@ function SettingsPage() {
         setErrors({ current: "Session expired — log in again" });
         return;
       }
-      const r = await changeMyPassword({ data: { token, current: f.current, next: f.password } });
+      const r = await changeMyPassword(token, f.current, f.password);
       if (!r.ok) {
         setErrors({ current: r.error });
         return;

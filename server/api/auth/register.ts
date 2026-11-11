@@ -19,6 +19,7 @@ export default defineEventHandler(async (event) => {
     return { ok: false, error: 'Username already taken' };
   }
 
+  const hash = await hashPassword(password);
   const now = new Date().toISOString();
   const result = await mutateDb((d2) => {
     const r = d2.referrals.find((x) => x.code === code);
@@ -27,7 +28,7 @@ export default defineEventHandler(async (event) => {
     const user = {
       id: `u_${nextId(d2, 'user')}`,
       username: username.trim(),
-      password_hash: hashPassword(password),
+      password_hash: hash,
       role: r.role,
       status: 'active',
       balance: r.credit,

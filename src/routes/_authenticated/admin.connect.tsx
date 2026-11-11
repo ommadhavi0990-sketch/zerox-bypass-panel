@@ -3,8 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, Field, Loader, PageGrid, copyText } from "@/components/zx/ui";
-import { meQuery, settingsQuery, getToken } from "@/lib/queries";
-import { maintenanceSet } from "@/lib/data.functions";
+import { maintenanceSet, meQuery, settingsQuery, getToken } from "@/lib/queries";
 import { errMsg } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/admin/connect")({
@@ -52,7 +51,7 @@ function MaintenanceCard() {
     if (enable && text.length < 3) { toast.error("Write a reason first"); return; }
     setBusy(true);
     try {
-      const r = await maintenanceSet({ data: { token, on: enable, message: text } });
+      const r = await maintenanceSet({ token, on: enable, message: text });
       if (!r.ok) return toast.error(r.error);
       setOn(enable);
       toast.success(enable ? "App is now in maintenance — logins blocked" : "App is live again — logins open");

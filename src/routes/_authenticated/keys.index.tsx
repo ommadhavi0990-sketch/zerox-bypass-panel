@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Empty, Loader, PageGrid, copyText, useConfirm } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
-import { keysQuery, getToken } from "@/lib/queries";
-import { keysDelete, keysDeleteExpired, keysResetDevices } from "@/lib/data.functions";
+import { keysDelete, keysDeleteExpired, keysQuery, getToken, keysResetDevices } from "@/lib/queries";
 import { durationLabel, fmtDate, isExpired } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/keys/")({
@@ -36,7 +35,7 @@ function KeysPage() {
   async function del(id: number) {
     const token = getToken();
     if (!token) return;
-    const r = await keysDelete({ data: { token, id } });
+    const r = await keysDelete(token, id);
     if (!r.ok) return toast.error(r.error);
     toast.success("Key deleted");
     refresh();
@@ -44,7 +43,7 @@ function KeysPage() {
   async function resetDevices(id: number) {
     const token = getToken();
     if (!token) return;
-    const r = await keysResetDevices({ data: { token, id } });
+    const r = await keysResetDevices({ token, id });
     if (!r.ok) return toast.error(r.error);
     toast.success("Devices reset");
     refresh();
@@ -52,7 +51,7 @@ function KeysPage() {
   async function delExpired() {
     const token = getToken();
     if (!token) return;
-    const r = await keysDeleteExpired({ data: { token } });
+    const r = await keysDeleteExpired({ token });
     if (!r.ok) return toast.error(r.error);
     toast.success(r.deleted ? `${r.deleted} expired key(s) deleted` : "No expired keys");
     refresh();

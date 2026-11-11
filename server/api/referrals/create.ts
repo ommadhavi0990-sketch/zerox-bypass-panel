@@ -21,6 +21,8 @@ export default defineEventHandler(async (event) => {
     if (cost > me.balance) return { ok: false, error: `Insufficient balance — need ₹${cost}` };
   }
 
+  let createdCode: string | null = null;
+  const now = new Date().toISOString();
   const result = await mutateDb((d2) => {
     const u = d2.users.find((x) => x.id === me.id);
     if (!u || u.status !== 'active') return;
@@ -34,12 +36,14 @@ export default defineEventHandler(async (event) => {
       id: nextId(d2, 'referral'), code, role, duration_hours: hours, credit, uses: 0, max_uses: uses,
       expires_at: new Date(Date.now() + validHours * 3_600_000).toISOString(), revoked: false,
       created_by: u.id, created_by_name: u.username, redemptions: [],
+      created_at: now,
     });
     if (u.role !== 'owner') { u.balance -= cost; u.ref_used += uses; }
     const label = hours ? `${hours}h` : 'lifetime';
     addTx(d2, u, 'referral_create', `Created ${code} · ${role} · ${label} · ₹${credit} credit · ${uses} use(s)`, u.role === 'owner' ? 0 : -cost, u.role === 'owner' ? null : u.balance);
+    createdCode = code;
   }, `referral created by ${me.username}`);
 
-  const created = result.referrals.find((r) => r.created_by_name === me.username && r.created_at === new Date().toISOString());
-  return { ok: true, code: created?.code || 'ZXUNKNOWN' };
+  if (!createdCode) return { ok: false, error: 'Could not create referral' };
+  return { ok: true, code: createdCode };
 });

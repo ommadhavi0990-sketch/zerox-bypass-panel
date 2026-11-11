@@ -4,7 +4,7 @@ import { PublicShell, DmButton, AuthHead } from "@/components/zx/Shell";
 import { Card } from "@/components/zx/ui";
 import { USERNAME_RE, errMsg } from "@/lib/zx";
 import { setToken, clearLegacyLocalData } from "@/lib/queries";
-import { registerAccount } from "@/lib/auth.functions";
+import { registerAccount } from "@/lib/queries";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -45,7 +45,9 @@ function RegisterPage() {
     setBusy(true);
     try {
       const r = await registerAccount({
-        data: { username: f.username.trim(), password: f.password, referral: f.referral.trim().toUpperCase() },
+        username: f.username.trim(),
+        password: f.password,
+        referral: f.referral.trim().toUpperCase(),
       });
       if (!r.ok) {
         setFormError(r.error);

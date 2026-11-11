@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Field, Loader, PageGrid, RoleTag, StatusPill } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
 import { meQuery, pricesQuery, usersQuery, getToken } from "@/lib/queries";
-import { ownerCreateUser } from "@/lib/auth.functions";
+import { ownerCreateUser, ownerDeleteUser, ownerSetPassword, ownerUpdateUser, ownerAdjustBalance } from "@/lib/queries";
 import { durationLabel, errMsg, fmtDate, inr, isExpired, timeAgo, type AppRole } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/admin/users/")({
@@ -96,16 +96,7 @@ function CreateUser({ onDone }: { onDone: () => void }) {
     if (f.password.length < 6) return toast.error("Password must be at least 6 characters");
     setBusy(true);
     try {
-      const r = await ownerCreateUser({
-        data: {
-          token,
-          username: f.username.trim(),
-          password: f.password,
-          role: f.role,
-          hours: h,
-          credit: f.credit,
-        },
-      });
+      const r = await ownerCreateUser({ token, username: f.username.trim(), password: f.password, role: f.role, hours: h, credit: f.credit });
       if (!r.ok) return toast.error(r.error);
       toast.success(`Account ${r.username} created`);
       void qc.invalidateQueries({ queryKey: ["users"] });

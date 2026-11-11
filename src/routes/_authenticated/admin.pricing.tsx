@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, Field, Loader, PageGrid, useConfirm } from "@/components/zx/ui";
 import { meQuery, pricesQuery, settingsQuery, getToken } from "@/lib/queries";
-import { settingsUpdate } from "@/lib/data.functions";
+import { settingsUpdate } from "@/lib/queries";
 import { durationLabel, errMsg } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/admin/pricing")({
@@ -37,7 +37,7 @@ function PricingPage() {
     const next = Object.entries(edit).map(([hours, price]) => ({ hours: Number(hours), price: Number(price) })).sort((a, b) => a.hours - b.hours);
     setBusy(true);
     try {
-      const r = await settingsUpdate({ data: { token, prices: next } });
+      const r = await settingsUpdate({ token, prices: next });
       if (!r.ok) return toast.error(r.error);
       toast.success("Prices saved");
       void qc.invalidateQueries({ queryKey: ["prices"] });
@@ -61,7 +61,7 @@ function PricingPage() {
     setBusy(true);
     try {
       const next = [...(prices ?? []), { hours, price }].sort((a, b) => a.hours - b.hours);
-      const r = await settingsUpdate({ data: { token, prices: next } });
+      const r = await settingsUpdate({ token, prices: next });
       if (!r.ok) return toast.error(r.error);
       toast.success(`Added ${durationLabel(hours)} · ₹${price}`);
       setNewH({ amount: "", unit: "hours", price: "" });
@@ -78,7 +78,7 @@ function PricingPage() {
     const token = getToken();
     if (!token) return;
     const next = (prices ?? []).filter((p) => p.hours !== hours);
-    const r = await settingsUpdate({ data: { token, prices: next } });
+    const r = await settingsUpdate({ token, prices: next });
     if (!r.ok) return toast.error(r.error);
     toast.success(`Removed ${durationLabel(hours)}`);
     void qc.invalidateQueries({ queryKey: ["prices"] });
@@ -97,7 +97,7 @@ function PricingPage() {
     }
     setBusy(true);
     try {
-      const r = await settingsUpdate({ data: { token, telegram: { url: tgUrl.trim(), handle: tgHandle.trim() } } });
+      const r = await settingsUpdate({ token, telegram: { url: tgUrl.trim(), handle: tgHandle.trim() } });
       if (!r.ok) return toast.error(r.error);
       toast.success("Telegram link saved");
       void qc.invalidateQueries({ queryKey: ["settings"] });

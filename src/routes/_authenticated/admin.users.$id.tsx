@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Empty, Field, Loader, PageGrid, StatusPill, useConfirm } from "@/components/zx/ui";
 import { meQuery, transactionsQuery, usersQuery, getToken } from "@/lib/queries";
-import { ownerDeleteUser, ownerSetPassword, ownerUpdateUser, ownerAdjustBalance } from "@/lib/auth.functions";
+import { ownerCreateUser, ownerDeleteUser, ownerSetPassword, ownerUpdateUser, ownerAdjustBalance } from "@/lib/queries";
 import { errMsg, fmtDate, inr, isExpired, type AccountStatus, type AppRole } from "@/lib/zx";
 import { kindLabel } from "./dashboard";
 
@@ -65,16 +65,7 @@ function EditUser() {
     if (!token) return toast.error("Session expired — log in again");
     setBusy(true);
     try {
-      const r = await ownerUpdateUser({
-        data: {
-          token,
-          userId: id,
-          role,
-          status,
-          expires_at: lifetime ? null : expires || null,
-          ref_limit: refLimit,
-        },
-      });
+      const r = await ownerUpdateUser({ token, userId: id, role, status, expires_at: lifetime ? null : expires || null, ref_limit: refLimit });
       if (!r.ok) return toast.error(r.error);
       toast.success("Account updated");
       refresh();
@@ -92,9 +83,7 @@ function EditUser() {
     if (!amount) return toast.error("Enter an amount");
     setBusy(true);
     try {
-      const r = await ownerAdjustBalance({
-        data: { token, userId: id, mode, amount, note: note.trim() || undefined },
-      });
+      const r = await ownerAdjustBalance({ token, userId: id, mode, amount, note: note.trim() || undefined });
       if (!r.ok) return toast.error(r.error);
       toast.success(`Balance ${r.balance ? inr(r.balance) : "₹0"}`);
       setAmount(0); setNote("");
@@ -111,9 +100,7 @@ function EditUser() {
     if (!token) return toast.error("Session expired — log in again");
     setBusy(true);
     try {
-      const r = await ownerUpdateUser({
-        data: { token, userId: id, role: u.role, status, expires_at: lifetime ? null : expires || null, ref_limit: refLimit },
-      });
+      const r = await ownerUpdateUser({ token, userId: id, role: u.role, status, expires_at: lifetime ? null : expires || null, ref_limit: refLimit });
       if (!r.ok) return toast.error(r.error);
       toast.success(`Status set to ${statusLabel(s)}`);
       refresh();
@@ -135,7 +122,7 @@ function EditUser() {
     if (pw.length < 6) return toast.error("Password must be at least 6 characters");
     setBusy(true);
     try {
-      const res = await ownerSetPassword({ data: { token, userId: id, password: pw } });
+      const res = await ownerSetPassword({ token, userId: id, password: pw });
       if (!res.ok) { toast.error(res.error); return; }
       toast.success("Password changed");
       setPw("");
@@ -149,7 +136,7 @@ function EditUser() {
   async function remove() {
     const token = getToken();
     if (!token) return;
-    const res = await ownerDeleteUser({ data: { token, userId: id } });
+    const res = await ownerDeleteUser({ token, userId: id });
     if (!res.ok) { toast.error(res.error); return; }
     toast.success("User deleted");
     refresh();

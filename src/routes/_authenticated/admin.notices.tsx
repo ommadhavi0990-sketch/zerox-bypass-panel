@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Empty, Field, PageGrid, useConfirm } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
 import { meQuery, noticesQuery, usersQuery, getToken } from "@/lib/queries";
-import { noticeSend, noticeDelete } from "@/lib/data.functions";
+import { noticeSend, noticeDelete } from "@/lib/queries";
 import { errMsg, timeAgo, type AppRole } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/admin/notices")({
@@ -42,15 +42,7 @@ function NoticesPage() {
     if (!title.trim() || !body.trim()) return toast.error("Title and message required");
     setBusy(true);
     try {
-      const r = await noticeSend({
-        data: {
-          token,
-          target: target === "all" ? "all" : target === "admin" ? "admin" : target === "reseller" ? "reseller" : "user",
-          ...(target === "user" ? { userId: userIdT } : {}),
-          title: title.trim(),
-          body: body.trim(),
-        },
-      });
+      const r = await noticeSend({ token, target: target === "all" ? "all" : target === "admin" ? "admin" : target === "reseller" ? "reseller" : "user", ...(target === "user" ? { userId: userIdT } : {}), title: title.trim(), body: body.trim() });
       if (!r.ok) return toast.error(r.error);
       toast.success("Notice sent");
       setTitle(""); setBody(""); setUserIdT("");
@@ -65,7 +57,7 @@ function NoticesPage() {
   async function del(id: number) {
     const token = getToken();
     if (!token) return;
-    const r = await noticeDelete({ data: { token, id } });
+    const r = await noticeDelete({ token, id });
     if (!r.ok) return toast.error(r.error);
     toast.success("Notice deleted");
     void qc.invalidateQueries({ queryKey: ["notices"] });

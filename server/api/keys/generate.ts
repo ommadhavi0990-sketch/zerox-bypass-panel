@@ -26,6 +26,16 @@ export default defineEventHandler(async (event) => {
   const expires_at = hours ? new Date(Date.now() + hours * 3_600_000).toISOString() : null;
   const made: string[] = [];
 
+  // Pre-generate license keys before the synchronous mutation
+  const preMade: string[] = [];
+  if (customKey) {
+    preMade.push(customKey.trim().toUpperCase());
+  } else {
+    for (let i = 0; i < qty; i++) {
+      preMade.push(await licenseKey());
+    }
+  }
+
   const result = await mutateDb((d2) => {
     const u = d2.users.find((x) => x.id === me.id);
     if (!u || u.status !== 'active') return;
@@ -40,8 +50,7 @@ export default defineEventHandler(async (event) => {
       });
       made.push(ck);
     } else {
-      for (let i = 0; i < qty; i++) {
-        const license = (await licenseKey()) as string;
+      for (const license of preMade) {
         d2.keys.push({
           id: nextId(d2, 'key'), license_key: license, game, duration_hours: hours, max_devices: devices, devices: [],
           created_by: u.id, created_by_name: u.username, created_at: now, expires_at,
