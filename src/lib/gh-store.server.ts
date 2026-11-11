@@ -227,8 +227,8 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
   try {
     const { Buffer } = await crypto();
     db = JSON.parse(Buffer.from(json.content.replace(/\s/g, ""), "base64").toString("utf8")) as Db;
-  } catch {
-    throw new Error("db.json is corrupted (invalid JSON) — fix it in the zerox-panel-data repo.");
+  } catch (e: any) {
+    throw new Error(`db.json read error: ${e.message}. Status: ${res.status}. Content present: ${!!json?.content}`);
   }
   cache = { at: Date.now(), sha: json.sha, db };
   return { db, sha: json.sha };
