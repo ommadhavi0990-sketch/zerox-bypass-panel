@@ -20,7 +20,8 @@ import { ZxSplash } from "@/components/zx/Splash";
 
 // Runs before first paint: restore the saved theme (no flash of the wrong colours).
 const BOOT_SCRIPT = `(function(){var d=document.documentElement,t="fire";try{t=(localStorage.getItem("zx_theme")||"fire").replace("red","fire")}catch(e){}d.setAttribute("data-zx",t)})()`;
-const FONTS_URL = "https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap";
+const FONTS_URL =
+  "https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap";
 
 function NotFoundComponent() {
   return (
@@ -28,9 +29,13 @@ function NotFoundComponent() {
       <div className="zx-card max-w-md p-8 text-center">
         <h1 className="zx-logo text-7xl">404</h1>
         <h2 className="mt-4 text-xl">Page not found</h2>
-        <p className="mt-2 text-sm zx-muted">The page you're looking for doesn't exist or has been moved.</p>
+        <p className="mt-2 text-sm zx-muted">
+          The page you're looking for doesn't exist or has been moved.
+        </p>
         <div className="mt-6">
-          <Link to="/" className="zx-btn">Go home</Link>
+          <Link to="/" className="zx-btn">
+            Go home
+          </Link>
         </div>
       </div>
     </div>
@@ -45,10 +50,22 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
     <div className="flex min-h-dvh items-center justify-center px-4">
       <div className="zx-card max-w-md p-8 text-center">
         <h1 className="text-xl">This page didn't load</h1>
-        <p className="mt-2 text-sm zx-muted">Something went wrong. You can try again or head back home.</p>
+        <p className="mt-2 text-sm zx-muted">
+          Something went wrong. You can try again or head back home.
+        </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button onClick={() => { router.invalidate(); reset(); }} className="zx-btn">Try again</button>
-          <a href="/" className="zx-btn-ghost">Go home</a>
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="zx-btn"
+          >
+            Try again
+          </button>
+          <a href="/" className="zx-btn-ghost">
+            Go home
+          </a>
         </div>
       </div>
     </div>
@@ -86,13 +103,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  // The login page ("/") is intentionally bare: only the card, no background layers or splash.
+  const bare = useRouterState({ select: (s) => s.location.pathname === "/" });
   return (
     <html lang="en" data-zx="fire" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
         <HeadContent />
       </head>
-      <body>
+      <body className={bare ? "zx-bare" : undefined}>
         <ZxBackgroundLayers />
         <ZxSplash />
         {children}
@@ -109,16 +128,22 @@ function TopBar() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const router = useRouter();
+  const bare = useRouterState({ select: (s) => s.location.pathname === "/" });
 
   return (
     <QueryClientProvider client={queryClient}>
       <ZxBackground />
       <TopBar />
-      <ThemeSwitcher />
+      {!bare && <ThemeSwitcher />}
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
-      <Toaster theme="dark" position="top-center" richColors closeButton toastOptions={{ style: { fontFamily: "var(--font-sans)", fontWeight: 600 } }} />
+      <Toaster
+        theme="dark"
+        position="top-center"
+        richColors
+        closeButton
+        toastOptions={{ style: { fontFamily: "var(--font-sans)", fontWeight: 600 } }}
+      />
     </QueryClientProvider>
   );
 }
