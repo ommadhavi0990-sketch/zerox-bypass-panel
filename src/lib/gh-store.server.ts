@@ -10,6 +10,7 @@
  * level) so TanStack Start's build-time analyzer never sees it and never
  * tries to bundle it for the client. */
 
+import https from "https";
 import type { Db, DbUser, UserRow } from "./types";
 import type { Profile } from "@/lib/zx";
 
@@ -103,19 +104,37 @@ const CACHE_MS = 10_000; // reads are cached briefly so one page load = one API 
 
 let cache: { at: number; sha: string; db: Db } | null = null;
 
-async function gh(path: string, init?: RequestInit): Promise<Response> {
+async function gh(path: string, init?: { method?: string; body?: string }): Promise<{ status: number; json?: any; text?: string }> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${DATA_TOKEN()}`,
     Accept: "application/vnd.github+json",
     "User-Agent": "zerox-panel-store",
     "X-GitHub-Api-Version": "2022-11-28",
-    "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string> | undefined),
+    ...(init?.body ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(init.body) } : {}),
   };
   let lastErr: unknown = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(`${GH_API}${path}`, { ...init, headers, signal: AbortSignal.timeout(20_000) });
+      const res = await new Promise<{ status: number; json?: any; text?: string }>((resolve, reject) => {
+        const url = new URL(`${GH_API}${path}`);
+        const req = https.request(url, {
+          method: init?.method || "GET",
+          headers,
+          timeout: 20000,
+        }, (res) => {
+          let buf = "";
+          res.on("data", (c) => (buf += c));
+          res.on("end", () => {
+            let json: any;
+            try { json = JSON.parse(buf); } catch { json = undefined; }
+            resolve({ status: res.statusCode, json, text: buf });
+          });
+        });
+        req.on("error", reject);
+        req.on("timeout", () => { req.destroy(); reject(new Error("timeout")); });
+        if (init?.body) req.write(init.body);
+        req.end();
+      });
       // Retry server-side hiccups; let 4xx (our mistakes) through immediately.
       if (res.status >= 500 && attempt < 3) {
         await new Promise((r) => setTimeout(r, 400 * attempt));
@@ -171,7 +190,7 @@ function defaultDb(): Db {
 
 async function putDb(db: Db, sha: string | null, message: string): Promise<string> {
   const { Buffer } = await crypto();
-  const res = await gh(`/repos/${DATA_REPO()}/contents/${DB_PATH}`, {
+  const res = await gh(`/repos/${DATA_REPO()}/contents/${DB_PATH}?ref=main`, {
     method: "PUT",
     body: JSON.stringify({
       message,
@@ -180,11 +199,11 @@ async function putDb(db: Db, sha: string | null, message: string): Promise<strin
     }),
   });
   if (res.status >= 400) {
-    const err = await res.text();
+    const err = res.text || "";
     if (err.includes('"sha"')) throw new ConflictError();
     throw new Error(`DB write failed (${res.status}): ${err.slice(0, 200)}`);
   }
-  const json = (await res.json()) as { content?: { sha?: string } };
+  const json = res.json as { content?: { sha?: string } };
   return json.content?.sha || "";
 }
 
@@ -193,7 +212,7 @@ class ConflictError extends Error {}
 /** Read the whole db (10s in-memory cache). Bootstraps db.json if it is missing. */
 export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
   if (!force && cache && Date.now() - cache.at < CACHE_MS) return { db: cache.db, sha: cache.sha };
-  const res = await gh(`/repos/${DATA_REPO()}/contents/${DB_PATH}`);
+  const res = await gh(`/repos/${DATA_REPO()}/contents/${DB_PATH}?ref=main`);
   if (res.status === 404) {
     // First ever run: create the database with the default owner (owner/owner123).
     const db = defaultDb();
@@ -202,8 +221,8 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
     cache = { at: Date.now(), sha, db };
     return { db, sha };
   }
-  if (res.status >= 400) throw new Error(`DB read failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
-  const json = (await res.json()) as { sha: string; content: string; encoding: string };
+  if (res.status >= 400) throw new Error(`DB read failed (${res.status}): ${(res.text || "").slice(0, 200)}`);
+  const json = res.json as { sha: string; content: string; encoding: string };
   let db: Db;
   try {
     const { Buffer } = await crypto();
