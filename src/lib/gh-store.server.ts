@@ -51,7 +51,7 @@ export async function verifyPassword(pw: string, stored: string): Promise<boolea
     const parts = stored.split(":");
     if (parts.length !== 6 || parts[0] !== "scrypt") return false;
     const [, N, r, p, saltB64, hashB64] = parts;
-    const { scryptSync, timingSafeEqual, Buffer } = await crypto();
+    const { scryptSync, timingSafeEqual } = await crypto();
     const hash = scryptSync(pw, Buffer.from(saltB64!, "base64"), SCRYPT.keylen, {
       N: +(N!),
       r: +(r!),
@@ -83,7 +83,7 @@ export async function verifyToken(token: string): Promise<{ uid: string } | null
   try {
     const [body, sig] = token.split(".");
     if (!body || !sig) return null;
-    const { createHmac, timingSafeEqual, Buffer } = await crypto();
+    const { createHmac, timingSafeEqual } = await crypto();
     const want = createHmac("sha256", SESSION_SECRET()).update(body).digest("base64url");
     const a = Buffer.from(sig);
     const b = Buffer.from(want);
@@ -189,7 +189,6 @@ function defaultDb(): Db {
 }
 
 async function putDb(db: Db, sha: string | null, message: string): Promise<string> {
-  const { Buffer } = await crypto();
   const res = await gh(`/repos/${DATA_REPO()}/contents/${DB_PATH}?ref=main`, {
     method: "PUT",
     body: JSON.stringify({
@@ -225,7 +224,6 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
   const json = res.json as { sha: string; content: string; encoding: string };
   let db: Db;
   try {
-    const { Buffer } = await crypto();
     db = JSON.parse(Buffer.from(json.content.replace(/\s/g, ""), "base64").toString("utf8")) as Db;
   } catch (e: any) {
     throw new Error(`db.json read error: ${e.message}. Status: ${res.status}. Content present: ${!!json?.content}`);
