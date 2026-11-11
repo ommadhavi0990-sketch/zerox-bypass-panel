@@ -15,7 +15,7 @@ export type Profile = {
 
 export const USERNAME_RE = /^[a-zA-Z0-9_]{4,24}$/;
 export const AUTH_EMAIL_DOMAIN = "zeroxpanel.app";
-export const GAMES = ["FIREWORK"] as const;
+export const GAMES = ["BGMI", "FIREWORK"] as const;
 export const BULK_OPTIONS = [1, 10, 50, 100, 200, 300] as const;
 export const DEFAULT_TELEGRAM = { url: "https://t.me/ONExZEROXX", handle: "@ONExZEROXX" };
 export const EXPIRED_MESSAGE = "Your referral has expired. Please DM the Owner.";

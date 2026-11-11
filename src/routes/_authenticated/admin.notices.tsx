@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/admin/notices")({
 function NoticesPage() {
   const { userId } = useMe();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: notices } = useQuery(noticesQuery);
   const { data: users } = useQuery(usersQuery);
   const { confirm, dialog } = useConfirm();
@@ -33,7 +34,10 @@ function NoticesPage() {
   async function send(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      navigate({ to: "/", replace: true });
+      return;
+    }
     if (target === "user" && !userIdT) return toast.error("Pick a user to send to");
     if (!title.trim() || !body.trim()) return toast.error("Title and message required");
     setBusy(true);

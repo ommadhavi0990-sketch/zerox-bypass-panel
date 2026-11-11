@@ -40,7 +40,7 @@ function EditUser() {
   const [refLimit, setRefLimit] = useState(10);
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"add" | "subtract" | "set">("add");
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [pw, setPw] = useState("");
 

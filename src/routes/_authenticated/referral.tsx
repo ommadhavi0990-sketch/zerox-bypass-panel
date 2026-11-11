@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ const VALIDITY = [
 function ReferralPage() {
   const { profile, role, isOwner } = useMe();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: prices } = useQuery(pricesQuery);
   const { data: list, isLoading } = useQuery(referralsQuery);
   const { confirm, dialog } = useConfirm();
@@ -52,7 +53,10 @@ function ReferralPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      navigate({ to: "/", replace: true });
+      return;
+    }
     const h = hours ? Number(hours) : null;
     if (!h && !isOwner) return toast.error("Select a duration plan");
     setBusy(true);
