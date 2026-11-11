@@ -106,7 +106,7 @@ let cache: { at: number; sha: string; db: Db } | null = null;
 
 async function gh(path: string, init?: { method?: string; body?: string }): Promise<{ status: number; json?: any; text?: string }> {
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${DATA_TOKEN()}`,
+    Authorization: `token ${DATA_TOKEN()}`,
     Accept: "application/vnd.github+json",
     "User-Agent": "zerox-panel-store",
     "X-GitHub-Api-Version": "2022-11-28",
