@@ -9,12 +9,11 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
 import iconsCss from "bootstrap-icons/font/bootstrap-icons.min.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ZxBackground, ZxBackgroundLayers } from "@/components/zx/Background";
 import { ThemeSwitcher } from "@/components/zx/ThemeSwitcher";
 import { ZxSplash } from "@/components/zx/Splash";
@@ -41,9 +40,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">

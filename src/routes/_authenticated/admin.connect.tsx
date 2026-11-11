@@ -108,7 +108,7 @@ function ConnectPage() {
   }, []);
 
   function isPreviewHost(h: string) {
-    return h === "localhost" || h.startsWith("id-preview--") || h.endsWith("-dev.lovable.app") || h.includes("lovableproject.com");
+    return h === "localhost" || h === "127.0.0.1";
   }
 
   function generate() {
