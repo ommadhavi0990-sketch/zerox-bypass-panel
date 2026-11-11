@@ -63,7 +63,7 @@ export const Route = createFileRoute("/api/public/connect")({
       GET: async ({ request }) => {
         const params = normalise(await readParams(request));
         if (params["ping"] === "1" && !params["user_key"]) {
-          const s = await import("@/lib/gh-store.server");
+          const s = await import("../../../lib/gh-store.server");
           const { db } = await s.readDb();
           const m = db.settings.maintenance;
           return json({ ok: true, message: m.on ? "MAINTENANCE" : "ONLINE", maintenance: m });
@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/public/connect")({
       },
       POST: async ({ request }) => {
         try {
-          const s = await import("@/lib/gh-store.server");
+          const s = await import("../../../lib/gh-store.server");
           if (!s.storageConfigured()) {
             return json({ status: false, reason: "CONFIG", message: "Panel storage not configured on server" }, 200);
           }
