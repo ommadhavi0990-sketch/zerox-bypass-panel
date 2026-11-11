@@ -12,7 +12,8 @@ export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: ({ location }) => {
     // Client-side gate: no session token (or fingerprint re-lock) → back to login.
-    if (!hasSession() || fpLocked()) throw redirect({ to: "/", search: { redirect: location.href } });
+    if (!hasSession() || fpLocked())
+      throw redirect({ to: "/", search: { redirect: location.href } });
   },
   loader: ({ context }) => context.queryClient.ensureQueryData(meQuery),
   pendingComponent: () => (

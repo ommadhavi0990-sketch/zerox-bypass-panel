@@ -5,7 +5,7 @@ import { Card, CardHeader, Loader, PageGrid } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
 import { fmtDate } from "@/lib/zx";
 import { getToken } from "@/lib/queries";
-import { fpRegister, fpRenew, fpUnregister } from "@/lib/queries";
+import { fpRegister, fpRenew, fpUnregister } from "@/lib/auth.functions";
 import {
   clearFpDevice,
   fpDaysLeft,
@@ -60,7 +60,7 @@ function FingerprintPage() {
       // The phone's biometric prompt creates the credential; the panel then
       // registers its id + a 30-day validity on the server (user record).
       const d = await setupLocalPasskey(profile.username);
-      const r = await fpRegister({ token, credentialId: d.id });
+      const r = await fpRegister({ data: { token, credentialId: d.id } });
       if (!r.ok) {
         clearFpDevice();
         setError(r.error);
@@ -84,13 +84,15 @@ function FingerprintPage() {
     setBusy(true);
     try {
       const d = await renewLocalPasskey(thisDevice);
-      const r = await fpRenew({ token, credentialId: d.id });
+      const r = await fpRenew({ data: { token, credentialId: d.id } });
       if (!r.ok) {
         setError(r.error);
         return;
       }
       setFpDevice({ ...d, until: r.until });
-      toast.success(`Fingerprint renewed · valid ${fpDaysLeft({ ...d, until: r.until })} more days`);
+      toast.success(
+        `Fingerprint renewed · valid ${fpDaysLeft({ ...d, until: r.until })} more days`,
+      );
       refresh();
     } catch (e) {
       setError(fpErrorMessage(e));
@@ -104,7 +106,7 @@ function FingerprintPage() {
     if (!thisDevice || !token) return;
     setBusy(true);
     try {
-      const r = await fpUnregister({ token });
+      const r = await fpUnregister({ data: { token } });
       if (!r.ok) {
         setError(r.error);
         return;

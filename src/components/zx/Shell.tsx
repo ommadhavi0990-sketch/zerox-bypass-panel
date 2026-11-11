@@ -21,8 +21,14 @@ export function Navbar() {
 export function Wordmark({ sub = "BYPASS", className = "" }: { sub?: string; className?: string }) {
   return (
     <span className={`zx-wm ${className}`} aria-label={`ZEROX ${sub}`}>
-      <span className="zx-wm-main" data-text="ZEROX" aria-hidden="true">ZEROX</span>
-      <span className="zx-wm-sub" aria-hidden="true"><i />{sub}<i /></span>
+      <span className="zx-wm-main" data-text="ZEROX" aria-hidden="true">
+        ZEROX
+      </span>
+      <span className="zx-wm-sub" aria-hidden="true">
+        <i />
+        {sub}
+        <i />
+      </span>
     </span>
   );
 }
@@ -31,8 +37,11 @@ export function Footer() {
   const { data: tg } = useQuery(settingsQuery);
   return (
     <footer className="zx-footer">
-      &copy; {new Date().getFullYear()} - <span className="zx-logo">ZEROX BYPASS</span>. All rights reserved. ·{" "}
-      <a href={tg?.telegram.url} target="_blank" rel="noopener noreferrer">DM {tg?.telegram.handle}</a>
+      &copy; {new Date().getFullYear()} - <span className="zx-logo">ZEROX BYPASS</span>. All rights
+      reserved. ·{" "}
+      <a href={tg?.telegram.url} target="_blank" rel="noopener noreferrer">
+        DM {tg?.telegram.handle}
+      </a>
     </footer>
   );
 }
@@ -96,31 +105,86 @@ export function Drawer({ role, profile }: { role: AppRole | null; profile: Profi
         </div>
         <div className="zx-drawer-user">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-bold truncate"><i className="bi bi-person-circle zx-accent mr-2" />{profile.username}</span>
+            <span className="font-bold truncate">
+              <i className="bi bi-person-circle zx-accent mr-2" />
+              {profile.username}
+            </span>
             <span className="zx-badge solid">{role ? ROLE_LABEL[role] : "—"}</span>
           </div>
-          <div className="mt-1 text-sm zx-muted">Balance: <b className="zx-accent">{role === "owner" ? "∞" : inr(profile.balance)}</b></div>
+          <div className="mt-1 text-sm zx-muted">
+            Balance: <b className="zx-accent">{role === "owner" ? "∞" : inr(profile.balance)}</b>
+          </div>
         </div>
         {items.map((n) => (
-          <Link key={n.to} to={n.to} activeOptions={{ exact: true }} activeProps={{ className: "active" }} onClick={() => setOpen(false)} tabIndex={open ? 0 : -1}>
-            <span className="zx-dico"><i className={`bi ${n.icon}`} /></span>{n.label}<i className="bi bi-chevron-right zx-chev" />
+          <Link
+            key={n.to}
+            to={n.to}
+            activeOptions={{ exact: true }}
+            activeProps={{ className: "active" }}
+            onClick={() => setOpen(false)}
+            tabIndex={open ? 0 : -1}
+          >
+            <span className="zx-dico">
+              <i className={`bi ${n.icon}`} />
+            </span>
+            {n.label}
+            <i className="bi bi-chevron-right zx-chev" />
           </Link>
         ))}
         <div className="zx-sep" />
-        <a href={tg?.telegram.url} target="_blank" rel="noopener noreferrer" tabIndex={open ? 0 : -1}><span className="zx-dico"><i className="bi bi-telegram" /></span>DM {tg?.telegram.handle}<i className="bi bi-box-arrow-up-right zx-chev" /></a>
-        <button type="button" className="zx-drawer-link" onClick={() => { setOpen(false); void signOut(); }} tabIndex={open ? 0 : -1}>
-          <span className="zx-dico bad"><i className="bi bi-box-arrow-right" /></span>Logout<i className="bi bi-chevron-right zx-chev" />
+        <a
+          href={tg?.telegram.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          tabIndex={open ? 0 : -1}
+        >
+          <span className="zx-dico">
+            <i className="bi bi-telegram" />
+          </span>
+          DM {tg?.telegram.handle}
+          <i className="bi bi-box-arrow-up-right zx-chev" />
+        </a>
+        <button
+          type="button"
+          className="zx-drawer-link"
+          onClick={() => {
+            setOpen(false);
+            void signOut();
+          }}
+          tabIndex={open ? 0 : -1}
+        >
+          <span className="zx-dico bad">
+            <i className="bi bi-box-arrow-right" />
+          </span>
+          Logout
+          <i className="bi bi-chevron-right zx-chev" />
         </button>
       </nav>
-      <button type="button" className={`zx-burger ${open ? "open" : ""}`} aria-label={open ? "Close menu" : "Open menu"} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <i /><i /><i />
+      <button
+        type="button"
+        className={`zx-burger ${open ? "open" : ""}`}
+        aria-label={open ? "Close menu" : "Open menu"}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <i />
+        <i />
+        <i />
       </button>
     </>
   );
 }
 
 /** Premium auth-card header: HUD corners, spinning emblem ring around the logo, gradient title, divider. */
-export function AuthHead({ title, sub, withLogo = true }: { title: string; sub: string; withLogo?: boolean }) {
+export function AuthHead({
+  title,
+  sub,
+  withLogo = true,
+}: {
+  title: string;
+  sub: string;
+  withLogo?: boolean;
+}) {
   return (
     <>
       <span className="zx-auth-hud" aria-hidden="true" />
@@ -131,7 +195,9 @@ export function AuthHead({ title, sub, withLogo = true }: { title: string; sub: 
       )}
       <h1 className="zx-auth-title">{title}</h1>
       <p className="zx-auth-sub">{sub}</p>
-      <div className="zx-auth-divider" aria-hidden="true"><i /></div>
+      <div className="zx-auth-divider" aria-hidden="true">
+        <i />
+      </div>
     </>
   );
 }

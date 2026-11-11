@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Empty, Field, Loader, PageGrid, RoleTag, copyText, useConfirm } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
 import { meQuery, pricesQuery, referralsQuery, getToken } from "@/lib/queries";
-import { referralCreate, referralRevoke } from "@/lib/queries";
+import { referralCreate, referralRevoke } from "@/lib/data.functions";
 import { durationLabel, errMsg, fmtDate, inr, isExpired, newRequestId, referralCost, type AppRole } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/referral")({
@@ -57,11 +57,20 @@ function ReferralPage() {
       navigate({ to: "/", replace: true });
       return;
     }
-    const h = hours ? Number(hours) : null;
+    const h = sel && sel !== "life" ? Number(sel) : null;
     if (!h && !isOwner) return toast.error("Select a duration plan");
     setBusy(true);
     try {
-      const r = await referralCreate({ token, role: isOwner ? target : "reseller", hours: h, credit: credit, uses: uses, validHours: valid });
+      const r = await referralCreate({
+        data: {
+          token,
+          role: isOwner ? target : "reseller",
+          hours: h,
+          credit: credit,
+          uses: uses,
+          validHours: valid,
+        },
+      });
       if (!r.ok) return toast.error(r.error);
       setLast(r.code);
       void qc.invalidateQueries({ queryKey: ["referrals"] });
@@ -77,7 +86,7 @@ function ReferralPage() {
   async function revoke(id: number) {
     const token = getToken();
     if (!token) return;
-    const r = await referralRevoke({ token, id });
+    const r = await referralRevoke({ data: { token, id } });
     if (!r.ok) return toast.error(r.error);
     toast.success("Referral revoked");
     void qc.invalidateQueries({ queryKey: ["referrals"] });

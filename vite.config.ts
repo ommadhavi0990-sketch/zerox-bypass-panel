@@ -14,6 +14,7 @@ export default defineConfig(({ command }) => ({
       // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
       // nitro/vite builds from this.
       server: { entry: "server" },
+      serverFns: { base: "/api/fn" },
       importProtection: {
         behavior: "error",
         client: {

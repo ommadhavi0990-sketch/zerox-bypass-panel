@@ -233,11 +233,11 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
 }
 
 /** Apply a change to db.json and save it (retries if the file moved underneath us). */
-export async function mutateDb(mutate: (db: Db) => void, message: string): Promise<Db> {
+export async function mutateDb(mutate: (db: Db) => void | Promise<void>, message: string): Promise<Db> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const { db, sha } = await readDb(attempt > 1);
     const next: Db = structuredClone(db);
-    mutate(next);
+    await mutate(next);
     try {
       const newSha = await putDb(next, sha, message);
       cache = { at: Date.now(), sha: newSha, db: next };
