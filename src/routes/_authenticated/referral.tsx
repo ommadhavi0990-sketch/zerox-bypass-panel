@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Empty, Field, Loader, PageGrid, RoleTag, copyText, useConfirm } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
-import { meQuery, pricesQuery, referralsQuery } from "@/lib/queries";
+import { meQuery, pricesQuery, referralsQuery, getToken } from "@/lib/queries";
+import { referralCreate, referralRevoke } from "@/lib/data.functions";
 import { durationLabel, errMsg, fmtDate, inr, isExpired, newRequestId, referralCost, type AppRole } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/referral")({
@@ -50,11 +51,42 @@ function ReferralPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    toast.error("Referral creation is disabled without a database.");
-    setBusy(false);
+    const token = getToken();
+    if (!token) return toast.error("Session expired — log in again");
+    const h = hours ? Number(hours) : null;
+    if (!h && !isOwner) return toast.error("Select a duration plan");
+    setBusy(true);
+    try {
+      const r = await referralCreate({
+        data: {
+          token,
+          role: isOwner ? target : "reseller",
+          hours: h,
+          credit: credit,
+          uses: uses,
+          validHours: valid,
+        },
+      });
+      if (!r.ok) return toast.error(r.error);
+      setLast(r.code);
+      void qc.invalidateQueries({ queryKey: ["referrals"] });
+      void qc.invalidateQueries({ queryKey: ["me"] });
+      setHours(""); setCredit(0); setUses(1); setValid(168);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Referral creation failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function revoke(id: string) { toast.error("Referral revoke is disabled without a database."); }
+  async function revoke(id: number) {
+    const token = getToken();
+    if (!token) return;
+    const r = await referralRevoke({ data: { token, id } });
+    if (!r.ok) return toast.error(r.error);
+    toast.success("Referral revoked");
+    void qc.invalidateQueries({ queryKey: ["referrals"] });
+  }
 
   return (
     <PageGrid>
@@ -70,7 +102,7 @@ function ReferralPage() {
                   <span>Referral used: <b>{profile.ref_used} / {profile.ref_limit}</b>{remaining <= 0 ? " — limit reached, contact the Owner" : ` · ${remaining} left`}</span>
                 </div>
               )}
-              <form onSubmit={submit} className="space-y-4" disabled>
+              <form onSubmit={submit} className="space-y-4" noValidate>
                 <Field label="Target Account Level" modern>
                   <select className="zx-input" value={isOwner ? target : "reseller"} disabled={!isOwner} onChange={(e) => setTarget(e.target.value as AppRole)}>
                     {isOwner && <option value="owner">OWNER</option>}
@@ -79,7 +111,7 @@ function ReferralPage() {
                   </select>
                 </Field>
                 <Field label="Account Expiration" modern>
-                  <select className="zx-input" value={sel} onChange={(e) => setHours(e.target.value)} disabled>
+                  <select className="zx-input" value={sel} onChange={(e) => setHours(e.target.value)}>
                     {(prices ?? []).map((p) => <option key={p.hours} value={p.hours}>{durationLabel(p.hours)}{isOwner ? "" : ` — ₹${p.price}`}</option>)}
                     {isOwner && <option value="life">Lifetime</option>}
                   </select>
@@ -87,15 +119,15 @@ function ReferralPage() {
                 <Field label="Credit Amount (Balance)" modern>
                   <div className="zx-input-group">
                     <span className="zx-addon">₹</span>
-                    <input type="number" inputMode="numeric" min={0} className="zx-input" value={credit} onChange={(e) => setCredit(Math.max(0, Math.floor(Number(e.target.value) || 0)))} disabled />
+                    <input type="number" inputMode="numeric" min={0} className="zx-input" value={credit} onChange={(e) => setCredit(Math.max(0, Math.floor(Number(e.target.value) || 0)))} />
                   </div>
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Usage Limit" modern>
-                    <input type="number" inputMode="numeric" min={1} max={100} className="zx-input" value={uses} onChange={(e) => setUses(Math.max(1, Math.min(100, Math.floor(Number(e.target.value) || 1))))} disabled />
+                    <input type="number" inputMode="numeric" min={1} max={100} className="zx-input" value={uses} onChange={(e) => setUses(Math.max(1, Math.min(100, Math.floor(Number(e.target.value) || 1))))} />
                   </Field>
                   <Field label="Code Valid For" modern>
-                    <select className="zx-input" value={valid} onChange={(e) => setValid(Number(e.target.value))} disabled>
+                    <select className="zx-input" value={valid} onChange={(e) => setValid(Number(e.target.value))}>
                       {VALIDITY.map((v) => <option key={v.h} value={v.h}>{v.l}</option>)}
                     </select>
                   </Field>
@@ -105,8 +137,8 @@ function ReferralPage() {
                   <b className="text-xl">{isOwner ? <span className="zx-text-ok">FREE</span> : inr(cost)}</b>
                 </div>
                 {!isOwner && <p className="zx-muted text-xs -mt-2">(Duration price + credit) × usage limit is deducted from your balance ({inr(profile.balance)}).</p>}
-                <button type="submit" className="zx-btn zx-btn-lg w-full" disabled>
-                  Generate Referral Code (disabled)
+                <button type="submit" className="zx-btn zx-btn-lg w-full" disabled={busy || short || overLimit}>
+                  {busy ? <><span className="zx-prog" style={{ width: 18, height: 18, borderWidth: 2 }} /> Creating…</> : "Generate Referral Code"}
                 </button>
               </form>
               {last && (
@@ -116,7 +148,7 @@ function ReferralPage() {
                     <div className="text-sm">New code</div>
                     <span className="zx-code text-lg">{last}</span>
                   </div>
-                  <button type="button" className="zx-icon-btn" aria-label="Copy code" disabled onClick={() => copyText(last, "Referral copied")}><i className="bi bi-clipboard" /></button>
+                  <button type="button" className="zx-icon-btn" aria-label="Copy code" onClick={() => copyText(last, "Referral copied")}><i className="bi bi-clipboard" /></button>
                 </div>
               )}
             </div>
@@ -130,7 +162,7 @@ function ReferralPage() {
               <DataTable
                 rows={list ?? []}
                 rowKey={(r) => r.id}
-                empty={<Empty text="No codes generated yet (database disconnected)." />}
+                empty={<Empty text="No codes generated yet." />}
                 mobileTitle={(r) => <div className="flex items-center justify-between gap-2"><span className="zx-code">{r.code}</span><RoleTag role={r.role} /></div>}
                 columns={[
                   { key: "code", label: "Code / Level", mobileHidden: true, render: (r) => <div className="flex flex-col items-start gap-1"><button type="button" className="zx-code" onClick={() => copyText(r.code, "Referral copied")} title="Copy">{r.code}</button><RoleTag role={r.role} /></div> },
@@ -150,7 +182,7 @@ function ReferralPage() {
                   },
                   {
                     key: "act", label: "", render: (r) => !r.revoked && r.uses < r.max_uses && !isExpired(r.expires_at) ? (
-                      <button type="button" className="zx-icon-btn danger" disabled aria-label="Revoke referral" onClick={() => revoke(r.id)}><i className="bi bi-x-octagon" /></button>
+                      <button type="button" className="zx-icon-btn danger" aria-label="Revoke referral" onClick={() => confirm({ title: "Revoke referral?", body: `Code ${r.code} will be cancelled for new users. Existing users keep access.`, danger: true, action: () => revoke(r.id) })}><i className="bi bi-x-octagon" /></button>
                     ) : null,
                   },
                 ]}

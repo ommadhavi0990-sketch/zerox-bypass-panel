@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, Field, Loader, PageGrid, copyText } from "@/components/zx/ui";
-import { meQuery } from "@/lib/queries";
+import { meQuery, settingsQuery, getToken } from "@/lib/queries";
+import { maintenanceSet } from "@/lib/data.functions";
 import { errMsg } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/admin/connect")({
@@ -38,17 +39,29 @@ const REASONS = [
 ];
 
 function MaintenanceCard() {
-  const [on, setOn] = useState(false);
-  const [msg, setMsg] = useState("");
+  const qc = useQueryClient();
+  const { data: settings } = useQuery(settingsQuery);
+  const [on, setOn] = useState(!!settings?.maintenance.on);
+  const [msg, setMsg] = useState(settings?.maintenance.message ?? "");
   const [busy, setBusy] = useState(false);
 
   async function apply(enable: boolean) {
+    const token = getToken();
+    if (!token) return toast.error("Session expired — log in again");
     const text = msg.trim();
     if (enable && text.length < 3) { toast.error("Write a reason first"); return; }
     setBusy(true);
-    setOn(enable);
-    setBusy(false);
-    toast.success(enable ? "App is now in maintenance — logins blocked" : "App is live again — logins open");
+    try {
+      const r = await maintenanceSet({ data: { token, on: enable, message: text } });
+      if (!r.ok) return toast.error(r.error);
+      setOn(enable);
+      toast.success(enable ? "App is now in maintenance — logins blocked" : "App is live again — logins open");
+      void qc.invalidateQueries({ queryKey: ["settings"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Maintenance toggle failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const changed = msg.trim().length > 0;
@@ -151,7 +164,7 @@ function ConnectPage() {
                 {preview && (
                   <div className="zx-alert warn"><i className="bi bi-exclamation-triangle" /><span>You are on the editor preview. Publish, open the panel on your real website, and generate again to get that website's link.</span></div>
                 )}
-                <div className="zx-alert"><i className="bi bi-info-circle" /><span>The connect API is disabled without a Supabase database. Old login.h versions will get status:false.</span></div>
+                <div className="zx-alert"><i className="bi bi-info-circle" /><span>The connect API validates keys against the live database — generate a key first, then test here.</span></div>
               </div>
             )}
           </div>

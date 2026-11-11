@@ -3,6 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, Field, PageGrid } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
+import { getToken } from "@/lib/queries";
+import { changeMyPassword } from "@/lib/auth.functions";
 import { errMsg, fmtDate, inr, ROLE_LABEL, usernameToEmail } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -26,18 +28,16 @@ function SettingsPage() {
     if (Object.keys(er).length) return;
     setBusy(true);
     try {
-      // Local auth: update the stored user's password hash
-      const usersRaw = localStorage.getItem("zx_local_users");
-      if (!usersRaw) { setBusy(false); setErrors({ current: "No users found" }); return; }
-      const users = JSON.parse(usersRaw);
-      const user = users.find((u: any) => u.username === profile.username);
-      if (!user || user.passwordHash !== hashPassword(f.current)) {
-        setBusy(false);
-        setErrors({ current: "Current password is wrong" });
+      const token = getToken();
+      if (!token) {
+        setErrors({ current: "Session expired — log in again" });
         return;
       }
-      user.passwordHash = hashPassword(f.password);
-      localStorage.setItem("zx_local_users", JSON.stringify(users));
+      const r = await changeMyPassword({ data: { token, current: f.current, next: f.password } });
+      if (!r.ok) {
+        setErrors({ current: r.error });
+        return;
+      }
       toast.success("Password updated");
       setF({ current: "", password: "", password2: "" });
     } catch (e) {
@@ -45,12 +45,6 @@ function SettingsPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function hashPassword(pw: string): string {
-    let h = 0;
-    for (let i = 0; i < pw.length; i++) h = ((h << 5) - h + pw.charCodeAt(i)) | 0;
-    return String(h);
   }
 
   return (

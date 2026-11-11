@@ -1,23 +1,18 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { Drawer, Footer, Navbar, DmButton, useSignOut } from "@/components/zx/Shell";
 import { Card, Loader } from "@/components/zx/ui";
-import { currentMe, meQuery, noticesQuery } from "@/lib/queries";
+import { hasSession, meQuery, noticesQuery } from "@/lib/queries";
 import { MeContext } from "@/lib/me-context";
 import { fpLocked } from "@/lib/fingerprint-device";
 import { EXPIRED_MESSAGE, timeAgo, type Profile } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
-  beforeLoad: async ({ location }) => {
-    // Note: the old code destructured { data } from queryFn's return — queryFn
-    // returns the Me object itself, so me was always undefined and logged-in
-    // users were bounced straight back to the login page.
-    const me = currentMe();
-    if (!me) throw redirect({ to: "/", search: { redirect: location.href } });
-    if (fpLocked()) throw redirect({ to: "/", search: { redirect: location.href } });
+  beforeLoad: ({ location }) => {
+    // Client-side gate: no session token (or fingerprint re-lock) → back to login.
+    if (!hasSession() || fpLocked()) throw redirect({ to: "/", search: { redirect: location.href } });
   },
   loader: ({ context }) => context.queryClient.ensureQueryData(meQuery),
   pendingComponent: () => (
@@ -50,12 +45,15 @@ function useExpiryTick(expiresAt: string | null | undefined) {
 }
 
 function PanelLayout() {
-  const qc = useQueryClient();
-  const { data: me } = useQuery(meQuery);
+  const navigate = useNavigate();
+  const { data: me, isLoading } = useQuery(meQuery);
   const signOut = useSignOut();
   useExpiryTick(me?.profile?.expires_at);
 
-  const uid = me?.userId;
+  // meQuery clears a bad/expired token itself — send the user to the login page.
+  useEffect(() => {
+    if (!isLoading && !me) navigate({ to: "/", replace: true });
+  }, [isLoading, me, navigate]);
 
   const ctx = useMemo(() => {
     if (!me?.profile) return null;
@@ -171,17 +169,17 @@ function GateCard({
 
 function NoticeBar() {
   const { data } = useQuery(noticesQuery);
-  const [hidden, setHidden] = useState<string[]>([]);
+  const [hidden, setHidden] = useState<number[]>([]);
   useEffect(() => {
     try {
-      setHidden(JSON.parse(localStorage.getItem("zx_hidden_notices") || "[]"));
+      setHidden(JSON.parse(localStorage.getItem("zx_hidden_notices") || "[]").map(Number));
     } catch {
       /* ignore */
     }
   }, []);
   const visible = (data ?? []).filter((n) => !hidden.includes(n.id)).slice(0, 3);
   if (!visible.length) return null;
-  function dismiss(id: string) {
+  function dismiss(id: number) {
     const next = [...hidden, id].slice(-100);
     setHidden(next);
     try {

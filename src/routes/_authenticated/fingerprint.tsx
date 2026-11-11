@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Card, CardHeader, Loader, PageGrid } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
 import { fmtDate } from "@/lib/zx";
+import { getToken } from "@/lib/queries";
+import { fpRegister, fpRenew, fpUnregister } from "@/lib/auth.functions";
 import {
   clearFpDevice,
   fpDaysLeft,
@@ -13,6 +15,7 @@ import {
   getFpDevice,
   markUnlocked,
   renewLocalPasskey,
+  setFpDevice,
   setupLocalPasskey,
   type FpDevice,
 } from "@/lib/fingerprint-device";
@@ -44,18 +47,29 @@ function FingerprintPage() {
   const active = thisDevice ? fpDeviceActive(thisDevice) : false;
   const daysLeft = thisDevice ? fpDaysLeft(thisDevice) : 0;
 
-  async function refresh() {
+  function refresh() {
     setDev(getFpDevice());
   }
 
   async function enable() {
+    const token = getToken();
+    if (!token) return;
     setError(null);
     setBusy(true);
     try {
-      await setupLocalPasskey(profile.username);
+      // The phone's biometric prompt creates the credential; the panel then
+      // registers its id + a 30-day validity on the server (user record).
+      const d = await setupLocalPasskey(profile.username);
+      const r = await fpRegister({ data: { token, credentialId: d.id } });
+      if (!r.ok) {
+        clearFpDevice();
+        setError(r.error);
+        return;
+      }
+      setFpDevice({ ...d, until: r.until });
       markUnlocked();
       toast.success("Fingerprint enabled on this phone");
-      await refresh();
+      refresh();
     } catch (e) {
       setError(fpErrorMessage(e));
     } finally {
@@ -64,13 +78,20 @@ function FingerprintPage() {
   }
 
   async function renew() {
-    if (!thisDevice) return;
+    const token = getToken();
+    if (!thisDevice || !token) return;
     setError(null);
     setBusy(true);
     try {
       const d = await renewLocalPasskey(thisDevice);
-      toast.success(`Fingerprint renewed · valid ${fpDaysLeft(d)} more days`);
-      await refresh();
+      const r = await fpRenew({ data: { token, credentialId: d.id } });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setFpDevice({ ...d, until: r.until });
+      toast.success(`Fingerprint renewed · valid ${fpDaysLeft({ ...d, until: r.until })} more days`);
+      refresh();
     } catch (e) {
       setError(fpErrorMessage(e));
     } finally {
@@ -79,9 +100,15 @@ function FingerprintPage() {
   }
 
   async function remove() {
-    if (!thisDevice) return;
+    const token = getToken();
+    if (!thisDevice || !token) return;
     setBusy(true);
     try {
+      const r = await fpUnregister({ data: { token } });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
       clearFpDevice();
       setDev(null);
       toast.success("Fingerprint removed from this phone");
@@ -190,10 +217,10 @@ function FingerprintPage() {
                 )}
 
                 <p className="zx-muted text-xs">
-                  Your fingerprint never leaves your phone — the panel runs without a database, so
-                  this phone's biometric prompt is the only verification. It stays valid for 30 days
-                  and can be renewed any time. Set it up on the same website address you log in
-                  from.
+                  Your fingerprint never leaves your phone — the biometric prompt is the only
+                  verification. Its id is registered on your panel account and stays valid for 30
+                  days, renewable any time. Unlock works only on the phone that created it. Set it
+                  up on the same website address you log in from.
                 </p>
               </>
             )}

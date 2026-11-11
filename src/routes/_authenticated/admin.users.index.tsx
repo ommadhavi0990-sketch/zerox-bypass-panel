@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Field, Loader, PageGrid, RoleTag, StatusPill } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
-import { meQuery, pricesQuery, usersQuery } from "@/lib/queries";
+import { meQuery, pricesQuery, usersQuery, getToken } from "@/lib/queries";
 import { ownerCreateUser } from "@/lib/auth.functions";
 import { durationLabel, errMsg, fmtDate, inr, isExpired, timeAgo, type AppRole } from "@/lib/zx";
 
@@ -45,7 +45,7 @@ function UsersPage() {
           icon="bi-shield-lock"
           title="Account Governance"
           sub={isOwner ? "Full control over every account." : "Your resellers, their balance and status."}
-          right={isOwner ? <button type="button" className="zx-btn zx-btn-sm" onClick={() => setShowCreate((s) => !s)} disabled><i className="bi bi-person-plus" /> {showCreate ? "Close" : "Add User"}</button> : undefined}
+          right={isOwner ? <button type="button" className="zx-btn zx-btn-sm" onClick={() => setShowCreate((s) => !s)}><i className="bi bi-person-plus" /> {showCreate ? "Close" : "Add User"}</button> : undefined}
         />
         {showCreate && isOwner && <CreateUser onDone={() => setShowCreate(false)} />}
         <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
@@ -61,7 +61,7 @@ function UsersPage() {
             mobileTitle={(u) => (
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0"><span className="zx-avatar" style={{ width: 38, height: 38, fontSize: "1rem" }}>{u.username[0]?.toUpperCase()}</span><b className="truncate">{u.username}</b></div>
-                {isOwner && <Link to="/admin/users/$id" params={{ id: u.id }} className="zx-icon-btn" aria-label={`Edit ${u.username}`} disabled><i className="bi bi-sliders2-vertical" /></Link>}
+                {isOwner && <Link to="/admin/users/$id" params={{ id: u.id }} className="zx-icon-btn" aria-label={`Edit ${u.username}`}><i className="bi bi-sliders2-vertical" /></Link>}
               </div>
             )}
             columns={[
@@ -89,25 +89,52 @@ function CreateUser({ onDone }: { onDone: () => void }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    toast.error("User creation is disabled without a database.");
-    setBusy(false);
+    const token = getToken();
+    if (!token) return toast.error("Session expired — log in again");
+    const h = f.hours === "life" ? null : Number(f.hours);
+    if (!f.username.trim()) return toast.error("Enter a username");
+    if (f.password.length < 6) return toast.error("Password must be at least 6 characters");
+    setBusy(true);
+    try {
+      const r = await ownerCreateUser({
+        data: {
+          token,
+          username: f.username.trim(),
+          password: f.password,
+          role: f.role,
+          hours: h,
+          credit: f.credit,
+        },
+      });
+      if (!r.ok) return toast.error(r.error);
+      toast.success(`Account ${r.username} created`);
+      void qc.invalidateQueries({ queryKey: ["users"] });
+      void qc.invalidateQueries({ queryKey: ["stats"] });
+      void qc.invalidateQueries({ queryKey: ["me"] });
+      onDone();
+      setF({ username: "", password: "", role: "reseller", hours: "720", credit: 0 });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "User creation failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <form onSubmit={submit} className="p-4 sm:p-5 border-b grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ borderColor: "var(--g25)" }} disabled>
-      <Field label="Username" modern><input className="zx-input" autoCapitalize="none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} placeholder="4-24 letters/numbers/_" required disabled /></Field>
-      <Field label="Password" modern><input className="zx-input" type="text" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} placeholder="Min 6 characters" minLength={6} required disabled /></Field>
+    <form onSubmit={submit} className="p-4 sm:p-5 border-b grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ borderColor: "var(--g25)" }} noValidate>
+      <Field label="Username" modern><input className="zx-input" autoCapitalize="none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} placeholder="4-24 letters/numbers/_" required /></Field>
+      <Field label="Password" modern><input className="zx-input" type="text" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} placeholder="Min 6 characters" minLength={6} required /></Field>
       <Field label="Role" modern>
-        <select className="zx-input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as AppRole })} disabled><option value="owner">OWNER</option><option value="admin">ADMIN</option><option value="reseller">RESELLER</option></select>
+        <select className="zx-input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as AppRole })}><option value="owner">OWNER</option><option value="admin">ADMIN</option><option value="reseller">RESELLER</option></select>
       </Field>
       <Field label="Duration" modern>
-        <select className="zx-input" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} disabled>
+        <select className="zx-input" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })}>
           {(prices ?? []).map((p) => <option key={p.hours} value={p.hours}>{durationLabel(p.hours)}</option>)}
           <option value="life">Lifetime</option>
         </select>
       </Field>
-      <Field label="Starting Balance (₹)" modern><input className="zx-input" type="number" min={0} value={f.credit} onChange={(e) => setF({ ...f, credit: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} disabled /></Field>
-      <div className="flex items-end"><button type="submit" className="zx-btn w-full" disabled>{busy ? "Creating…" : <><i className="bi bi-check-circle" /> Create Account</>}</button></div>
+      <Field label="Starting Balance (₹)" modern><input className="zx-input" type="number" min={0} value={f.credit} onChange={(e) => setF({ ...f, credit: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} /></Field>
+      <div className="flex items-end"><button type="submit" className="zx-btn w-full" disabled={busy}>{busy ? "Creating…" : <><i className="bi bi-check-circle" /> Create Account</>}</button></div>
     </form>
   );
 }

@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardHeader, DataTable, Empty, Loader, PageGrid, copyText, useConfirm } from "@/components/zx/ui";
 import { useMe } from "@/lib/me-context";
-import { durationLabel, errMsg, fmtDate, isExpired } from "@/lib/zx";
+import { keysQuery, getToken } from "@/lib/queries";
+import { keysDelete, keysDeleteExpired, keysResetDevices } from "@/lib/data.functions";
+import { durationLabel, fmtDate, isExpired } from "@/lib/zx";
 
 export const Route = createFileRoute("/_authenticated/keys/")({
   head: () => ({ meta: [{ title: "My Keys · ZEROX BYPASS Panel" }, { name: "description", content: "All license keys you generated." }] }),
@@ -27,17 +29,34 @@ function KeysPage() {
     return () => window.clearTimeout(t);
   }, [search]);
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["keys", page, q],
-    placeholderData: keepPreviousData,
-    queryFn: async () => ({ rows: [], count: 0 }),
-  });
+  const { data, isLoading, isFetching } = useQuery({ ...keysQuery(page, q), placeholderData: keepPreviousData });
 
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["keys"] }); void qc.invalidateQueries({ queryKey: ["stats"] }); };
 
-  async function del(id: number) { toast.error("Key deletion is disabled without a database."); }
-  async function resetDevices(id: number) { toast.error("Device reset is disabled without a database."); }
-  async function delExpired() { toast.error("Expired key cleanup is disabled without a database."); }
+  async function del(id: number) {
+    const token = getToken();
+    if (!token) return;
+    const r = await keysDelete({ data: { token, id } });
+    if (!r.ok) return toast.error(r.error);
+    toast.success("Key deleted");
+    refresh();
+  }
+  async function resetDevices(id: number) {
+    const token = getToken();
+    if (!token) return;
+    const r = await keysResetDevices({ data: { token, id } });
+    if (!r.ok) return toast.error(r.error);
+    toast.success("Devices reset");
+    refresh();
+  }
+  async function delExpired() {
+    const token = getToken();
+    if (!token) return;
+    const r = await keysDeleteExpired({ data: { token } });
+    if (!r.ok) return toast.error(r.error);
+    toast.success(r.deleted ? `${r.deleted} expired key(s) deleted` : "No expired keys");
+    refresh();
+  }
 
   const rows = data?.rows ?? [];
   const pages = Math.max(1, Math.ceil((data?.count ?? 0) / PAGE));
@@ -53,14 +72,14 @@ function KeysPage() {
           right={
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="zx-icon-btn" onClick={() => setBlur((b) => !b)} title="Toggle key visibility" aria-label="Toggle key visibility"><i className={`bi ${blur ? "bi-eye" : "bi-eye-slash"}`} /></button>
-              <button type="button" className="zx-btn-ghost" onClick={() => confirm({ title: "Delete expired keys?", body: "All your expired keys will be removed permanently.", danger: true, action: delExpired })} disabled><i className="bi bi-trash" /> <span className="hidden sm:inline">Delete Expired</span></button>
-              <Link to="/keys/generate" className="zx-btn zx-btn-sm" disabled><i className="bi bi-plus-circle" /> Generate</Link>
+              <button type="button" className="zx-btn-ghost" onClick={() => confirm({ title: "Delete expired keys?", body: "All your expired keys will be removed permanently.", danger: true, action: delExpired })}><i className="bi bi-trash" /> <span className="hidden sm:inline">Delete Expired</span></button>
+              <Link to="/keys/generate" className="zx-btn zx-btn-sm"><i className="bi bi-plus-circle" /> Generate</Link>
             </div>
           }
         />
         <div className="p-3 sm:p-4">
           <div className="zx-input-icon">
-            <input className="zx-input" placeholder="Search keys…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search keys" disabled />
+            <input className="zx-input" placeholder="Search keys…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search keys" />
             <i className="bi bi-search zx-ico" />
           </div>
         </div>
@@ -68,7 +87,7 @@ function KeysPage() {
           <DataTable
             rows={rows}
             rowKey={(r) => r.id}
-            empty={<Empty icon="bi-key" text={q ? "No keys match your search." : "No license keys yet (database disconnected)."} />}
+            empty={<Empty icon="bi-key" text={q ? "No keys match your search." : "No license keys yet — generate your first key."} />}
             mobileTitle={(r) => <span className={`zx-code ${blur ? "zx-blur" : ""}`}>{r.license_key}</span>}
             columns={[
               { key: "id", label: "ID", className: "w-16", mobileHidden: true, render: (r) => <span className="zx-muted">#{r.id}</span> },
@@ -81,9 +100,9 @@ function KeysPage() {
               {
                 key: "act", label: "Actions", render: (r) => (
                   <div className="flex gap-2 justify-end md:justify-start">
-                    <button type="button" className="zx-icon-btn" aria-label="Copy key" disabled onClick={() => copyText(r.license_key, "Key copied")}><i className="bi bi-clipboard" /></button>
-                    <button type="button" className="zx-icon-btn" aria-label="Reset devices" disabled title="Reset devices" onClick={() => resetDevices(r.id)}><i className="bi bi-phone" /></button>
-                    <button type="button" className="zx-icon-btn danger" disabled aria-label="Delete key" onClick={() => del(r.id)}><i className="bi bi-trash" /></button>
+                    <button type="button" className="zx-icon-btn" aria-label="Copy key" onClick={() => copyText(r.license_key, "Key copied")}><i className="bi bi-clipboard" /></button>
+                    <button type="button" className="zx-icon-btn" aria-label="Reset devices" title="Reset devices" onClick={() => resetDevices(r.id)}><i className="bi bi-phone" /></button>
+                    <button type="button" className="zx-icon-btn danger" aria-label="Delete key" onClick={() => confirm({ title: "Delete key?", body: `Key ${r.license_key} will be removed permanently.`, danger: true, action: () => del(r.id) })}><i className="bi bi-trash" /></button>
                   </div>
                 ),
               },
@@ -92,9 +111,9 @@ function KeysPage() {
         )}
         {pages > 1 && (
           <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border-t" style={{ borderColor: "var(--g25)" }}>
-            <button type="button" className="zx-btn-ghost" disabled onClick={() => setPage((p) => p - 1)}><i className="bi bi-chevron-left" /> Prev</button>
+            <button type="button" className="zx-btn-ghost" disabled={page === 0} onClick={() => setPage((p) => p - 1)}><i className="bi bi-chevron-left" /> Prev</button>
             <span className="zx-muted text-sm font-semibold">Page {page + 1} / {pages} {isFetching && "…"}</span>
-            <button type="button" className="zx-btn-ghost" disabled onClick={() => setPage((p) => p + 1)}>Next <i className="bi bi-chevron-right" /></button>
+            <button type="button" className="zx-btn-ghost" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>Next <i className="bi bi-chevron-right" /></button>
           </div>
         )}
       </Card>

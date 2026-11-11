@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import logo from "@/assets/zerox-logo.webp";
-import { settingsQuery } from "@/lib/queries";
+import { settingsQuery, clearToken, clearLegacyLocalData } from "@/lib/queries";
 import { clearUnlocked } from "@/lib/fingerprint-device";
 import { inr, ROLE_LABEL, type AppRole, type Profile } from "@/lib/zx";
 
@@ -32,7 +32,7 @@ export function Footer() {
   return (
     <footer className="zx-footer">
       &copy; {new Date().getFullYear()} - <span className="zx-logo">ZEROX BYPASS</span>. All rights reserved. ·{" "}
-      <a href={tg?.url} target="_blank" rel="noopener noreferrer">DM {tg?.handle}</a>
+      <a href={tg?.telegram.url} target="_blank" rel="noopener noreferrer">DM {tg?.telegram.handle}</a>
     </footer>
   );
 }
@@ -40,8 +40,8 @@ export function Footer() {
 export function DmButton({ label = "TO BUY REFERRAL" }: { label?: string }) {
   const { data: tg } = useQuery(settingsQuery);
   return (
-    <a className="zx-dm" href={tg?.url} target="_blank" rel="noopener noreferrer">
-      <i className="bi bi-telegram" /> DM {tg?.handle} {label}
+    <a className="zx-dm" href={tg?.telegram.url} target="_blank" rel="noopener noreferrer">
+      <i className="bi bi-telegram" /> DM {tg?.telegram.handle} {label}
     </a>
   );
 }
@@ -68,8 +68,8 @@ export function useSignOut() {
     await qc.cancelQueries();
     qc.clear();
     clearUnlocked();
-    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("zx_local_session");
-    if (typeof localStorage !== "undefined") localStorage.removeItem("zx_local_users");
+    clearToken();
+    clearLegacyLocalData();
     navigate({ to: "/", replace: true });
   };
 }
@@ -107,7 +107,7 @@ export function Drawer({ role, profile }: { role: AppRole | null; profile: Profi
           </Link>
         ))}
         <div className="zx-sep" />
-        <a href={tg?.url} target="_blank" rel="noopener noreferrer" tabIndex={open ? 0 : -1}><span className="zx-dico"><i className="bi bi-telegram" /></span>DM {tg?.handle}<i className="bi bi-box-arrow-up-right zx-chev" /></a>
+        <a href={tg?.telegram.url} target="_blank" rel="noopener noreferrer" tabIndex={open ? 0 : -1}><span className="zx-dico"><i className="bi bi-telegram" /></span>DM {tg?.telegram.handle}<i className="bi bi-box-arrow-up-right zx-chev" /></a>
         <button type="button" className="zx-drawer-link" onClick={() => { setOpen(false); void signOut(); }} tabIndex={open ? 0 : -1}>
           <span className="zx-dico bad"><i className="bi bi-box-arrow-right" /></span>Logout<i className="bi bi-chevron-right zx-chev" />
         </button>
