@@ -127,7 +127,7 @@ export const keysGenerate = createServerFn({ method: "POST" })
           return;
         }
         for (let i = 0; i < qty; i++) {
-          const license = custom ?? licenseOf(d2, u.username, data.hours);
+          const license = custom ?? licenseOf(d2, data.hours);
           d2.keys.push({
             id: nextKey(d2),
             license_key: license,
@@ -565,11 +565,10 @@ function durationTag(hours: number | null): string {
 
 function licenseOf(
   db: { keys: { license_key: string }[] },
-  creator: string,
   hours: number | null,
 ): string {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const prefix = `${creator.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "") || "ZX"}-${durationTag(hours)}`;
+  const prefix = `ZEROX-${durationTag(hours)}`;
   const pick = (n: number) => {
     let out = "";
     for (let i = 0; i < n; i++) out += letters[Math.floor(Math.random() * letters.length)];
