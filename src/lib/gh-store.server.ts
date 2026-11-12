@@ -156,7 +156,7 @@ function defaultDb(): Db {
     users: [
       {
         id: "u_1",
-        username: "owner",
+        username: "ombhaiowner",
         password_hash: "PLACEHOLDER",
         role: "owner",
         status: "active",
@@ -213,9 +213,9 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
   if (!force && cache && Date.now() - cache.at < CACHE_MS) return { db: cache.db, sha: cache.sha };
   const res = await gh(`/repos/${DATA_REPO()}/contents/${DB_PATH}?ref=main`);
   if (res.status === 404) {
-    // First ever run: create the database with the default owner (owner/owner123).
+    // First ever run: create the database with the default owner (ombhaiowner/ombhai0909).
     const db = defaultDb();
-    db.users[0].password_hash = await hashPassword("owner123");
+    if (db.users[0]) db.users[0].password_hash = await hashPassword("ombhai0909");
     const sha = await putDb(db, null, "Bootstrap panel database");
     cache = { at: Date.now(), sha, db };
     return { db, sha };
@@ -223,13 +223,40 @@ export async function readDb(force = false): Promise<{ db: Db; sha: string }> {
   if (res.status >= 400) throw new Error(`DB read failed (${res.status}): ${(res.text || "").slice(0, 200)}`);
   const json = res.json as { sha: string; content: string; encoding: string };
   let db: Db;
+  let sha = json.sha;
   try {
     db = JSON.parse(Buffer.from(json.content.replace(/\s/g, ""), "base64").toString("utf8")) as Db;
   } catch (e: any) {
     throw new Error(`db.json read error: ${e.message}. Status: ${res.status}. Content present: ${!!json?.content}`);
   }
-  cache = { at: Date.now(), sha: json.sha, db };
-  return { db, sha: json.sha };
+  const legacyOwner = db.users?.find(
+    (u) => u.role === "owner" && u.username.toLowerCase() === "owner",
+  );
+  if (
+    legacyOwner &&
+    !findUser(db, "ombhaiowner") &&
+    (await verifyPassword("owner123", legacyOwner.password_hash))
+  ) {
+    try {
+      const next = structuredClone(db);
+      const nextOwner = next.users.find(
+        (u) => u.role === "owner" && u.username.toLowerCase() === "owner",
+      );
+      if (nextOwner) {
+        nextOwner.username = "ombhaiowner";
+        nextOwner.password_hash = await hashPassword("ombhai0909");
+        for (const u of next.users) {
+          if (u.uplink === "owner") u.uplink = "ombhaiowner";
+        }
+        sha = await putDb(next, sha, "Update default owner credentials");
+        db = next;
+      }
+    } catch {
+      // Non-fatal if a concurrent write happened; next forced read retries cleanly.
+    }
+  }
+  cache = { at: Date.now(), sha, db };
+  return { db, sha };
 }
 
 /** Apply a change to db.json and save it (retries if the file moved underneath us). */
@@ -259,7 +286,7 @@ export function findUser(db: Db, username: string): DbUser | undefined {
 
 /** Strip server-only fields off a user row before sending it to the browser. */
 export function toUserRow(u: DbUser): UserRow {
-  const { password_hash: _ph, passkey: _pk, ...row } = u;
+  const { password_hash: _ph, passkey: _pk, passkeys: _pks, ...row } = u;
   return row;
 }
 

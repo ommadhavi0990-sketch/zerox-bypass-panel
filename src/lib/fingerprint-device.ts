@@ -81,6 +81,13 @@ const dec = (str: string) => {
   return out;
 };
 
+const credId = (cred: PublicKeyCredential) =>
+  cred.rawId && cred.rawId.byteLength > 0 ? enc(cred.rawId) : cred.id.replace(/=+$/, "");
+
+export function sameFpUser(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 /** Opens the phone's fingerprint prompt to create a new passkey. */
 export async function createPasskey(o: {
   challenge: string;
@@ -88,49 +95,63 @@ export async function createPasskey(o: {
   userId: string;
   username: string;
 }) {
-  const cred = (await navigator.credentials.create({
-    publicKey: {
-      challenge: dec(o.challenge) as BufferSource,
-      rp: { id: o.rpId, name: "ZEROX BYPASS PANEL" },
-      user: { id: dec(o.userId) as BufferSource, name: o.username, displayName: o.username },
-      pubKeyCredParams: [
-        { type: "public-key", alg: -7 },
-        { type: "public-key", alg: -257 },
-      ],
-      authenticatorSelection: {
-        authenticatorAttachment: "platform",
-        userVerification: "required",
-        residentKey: "preferred",
+  const createWith = (residentKey: ResidentKeyRequirement) =>
+    navigator.credentials.create({
+      publicKey: {
+        challenge: dec(o.challenge) as BufferSource,
+        rp: { id: o.rpId, name: "ZEROX BYPASS PANEL" },
+        user: { id: dec(o.userId) as BufferSource, name: o.username, displayName: o.username },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },
+          { type: "public-key", alg: -257 },
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey,
+        },
+        attestation: "none",
+        timeout: 60000,
       },
-      attestation: "none",
-      timeout: 60000,
-    },
-  })) as PublicKeyCredential | null;
+    }) as Promise<PublicKeyCredential | null>;
+
+  let cred: PublicKeyCredential | null;
+  try {
+    // Prefer a discoverable passkey so unlock keeps working even if browser storage is cleared or opened as a PWA.
+    cred = await createWith("required");
+  } catch (e) {
+    const name = (e as { name?: string })?.name;
+    if (name !== "NotSupportedError" && name !== "ConstraintError") throw e;
+    cred = await createWith("preferred");
+  }
   if (!cred) throw new Error("Fingerprint cancelled");
   const r = cred.response as AuthenticatorAttestationResponse;
   const pub = r.getPublicKey?.();
   const alg = r.getPublicKeyAlgorithm?.();
-  if (!pub || typeof alg !== "number")
-    throw new Error(
-      "This browser cannot set up fingerprint. Update Chrome or Safari and try again.",
-    );
-  return { id: cred.id, publicKey: enc(pub), alg, clientDataJSON: enc(r.clientDataJSON) };
+  return {
+    id: credId(cred),
+    publicKey: pub ? enc(pub) : undefined,
+    alg: typeof alg === "number" ? alg : undefined,
+    clientDataJSON: enc(r.clientDataJSON),
+  };
 }
 
-/** Opens the phone's fingerprint prompt to sign a login challenge. */
-export async function getPasskey(o: { challenge: string; rpId: string; credentialId: string }) {
-  const cred = (await navigator.credentials.get({
-    publicKey: {
-      challenge: dec(o.challenge) as BufferSource,
-      rpId: o.rpId,
-      allowCredentials: [{ type: "public-key", id: dec(o.credentialId) as BufferSource }],
-      userVerification: "required",
-      timeout: 60000,
-    },
-  })) as PublicKeyCredential | null;
+/** Opens the phone's fingerprint prompt to sign a login challenge (discoverable when credentialId is omitted). */
+export async function getPasskey(o: { challenge: string; rpId: string; credentialId?: string }) {
+  const publicKey: PublicKeyCredentialRequestOptions = {
+    challenge: dec(o.challenge) as BufferSource,
+    rpId: o.rpId,
+    userVerification: "required",
+    timeout: 60000,
+    ...(o.credentialId
+      ? { allowCredentials: [{ type: "public-key", id: dec(o.credentialId) as BufferSource }] }
+      : {}),
+  };
+  const cred = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
   if (!cred) throw new Error("Fingerprint cancelled");
   const r = cred.response as AuthenticatorAssertionResponse;
   return {
+    id: credId(cred),
     authenticatorData: enc(r.authenticatorData),
     clientDataJSON: enc(r.clientDataJSON),
     signature: enc(r.signature),
@@ -195,9 +216,14 @@ export async function setupLocalPasskey(username: string): Promise<FpDevice> {
   return d;
 }
 
-/** Opens the phone's biometric prompt to verify the owner (throws if cancelled/failed). */
-export async function unlockLocalPasskey(credentialId: string): Promise<void> {
-  await getPasskey({ challenge: randB64(), rpId: localRpId(), credentialId });
+/** Opens the phone's biometric prompt to verify the owner (throws if cancelled/failed) and returns the credential id. */
+export async function unlockLocalPasskey(credentialId?: string): Promise<string> {
+  const res = await getPasskey({
+    challenge: randB64(),
+    rpId: localRpId(),
+    ...(credentialId ? { credentialId } : {}),
+  });
+  return res.id;
 }
 
 /** Requires a fresh biometric scan, then extends this phone's validity by 30 days. */

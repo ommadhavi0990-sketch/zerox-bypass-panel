@@ -15,6 +15,7 @@ import {
   getFpDevice,
   markUnlocked,
   renewLocalPasskey,
+  sameFpUser,
   setFpDevice,
   setupLocalPasskey,
   type FpDevice,
@@ -43,7 +44,7 @@ function FingerprintPage() {
   }, []);
 
   // The remembered device only counts if it belongs to the account that is signed in now.
-  const thisDevice = dev && dev.u === profile.username ? dev : null;
+  const thisDevice = dev && sameFpUser(dev.u, profile.username) ? dev : null;
   const active = thisDevice ? fpDeviceActive(thisDevice) : false;
   const daysLeft = thisDevice ? fpDaysLeft(thisDevice) : 0;
 
@@ -106,7 +107,7 @@ function FingerprintPage() {
     if (!thisDevice || !token) return;
     setBusy(true);
     try {
-      const r = await fpUnregister({ data: { token } });
+      const r = await fpUnregister({ data: { token, credentialId: thisDevice.id } });
       if (!r.ok) {
         setError(r.error);
         return;

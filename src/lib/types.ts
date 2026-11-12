@@ -3,16 +3,21 @@
 
 import type { AccountStatus, AppRole, Profile } from "@/lib/zx";
 
+/** A registered WebAuthn fingerprint credential + expiry. */
+export type DbPasskey = { id: string; expires_at: string };
+
 /** What a user row looks like in db.json (server only fields included). */
 export type DbUser = Profile & {
   password_hash: string;
   last_active_at: string | null;
-  /** This user's registered fingerprint unlock (WebAuthn credential id + expiry). */
-  passkey: { id: string; expires_at: string } | null;
+  /** This user's latest registered fingerprint unlock (WebAuthn credential id + expiry). */
+  passkey: DbPasskey | null;
+  /** All registered fingerprint passkeys for this user (supports multiple browsers/devices). */
+  passkeys?: DbPasskey[];
 };
 
-/** A user row safe to send to the browser (no password hash / passkey). */
-export type UserRow = Omit<DbUser, "password_hash" | "passkey">;
+/** A user row safe to send to the browser (no password hash / passkeys). */
+export type UserRow = Omit<DbUser, "password_hash" | "passkey" | "passkeys">;
 
 export type DbKey = {
   id: number;
@@ -83,4 +88,10 @@ export type Db = {
 };
 
 /** Who is signed in (mirrors the session user, without secret fields). */
-export type Me = { userId: string; profile: Profile | null; role: AppRole | null };
+export type Me = {
+  userId: string;
+  profile: Profile | null;
+  role: AppRole | null;
+  passkeyCount?: number;
+  passkeyUntil?: string | null;
+};

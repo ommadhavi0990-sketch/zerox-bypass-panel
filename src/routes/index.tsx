@@ -68,14 +68,14 @@ function LoginPage() {
   }, [navigate, redirect]);
 
   async function unlock() {
-    if (!dev) return;
+    if (!dev && !canFp) return;
     setError(null);
     setFpBusy(true);
     try {
-      // The phone's biometric prompt is the local verification.
-      await unlockLocalPasskey(dev.id);
+      // The phone's biometric prompt is the local verification (works with saved passkeys even if browser storage cleared).
+      const credId = await unlockLocalPasskey(dev?.id);
       // The panel then swaps it for a real server session.
-      const r = await fpLogin({ data: { credentialId: dev.id } });
+      const r = await fpLogin({ data: { credentialId: credId } });
       if (!r.ok) {
         if (r.code === "UNKNOWN") {
           clearFpDevice();
@@ -87,7 +87,13 @@ function LoginPage() {
         return;
       }
       setToken(r.token);
-      if (r.me.profile) setFpDevice({ ...dev, u: r.me.profile.username });
+      if (r.me.profile) {
+        setFpDevice({
+          id: credId,
+          u: r.me.profile.username,
+          until: r.until ?? dev?.until ?? null,
+        });
+      }
       markUnlocked();
       navigate({ to: safeRedirect(redirect), replace: true });
     } catch (e) {
@@ -194,9 +200,6 @@ function LoginPage() {
                   "Login to Dashboard"
                 )}
               </button>
-              <p className="text-center text-sm zx-muted pt-2">
-                Default account: <b>owner</b> / <b>owner123</b>
-              </p>
               {(dev || canFp) && (
                 <div className="space-y-3 pt-4">
                   <div className="flex items-center gap-3 zx-muted text-xs font-bold uppercase tracking-wider">
@@ -204,7 +207,7 @@ function LoginPage() {
                     OR
                     <span className="flex-1 border-t" style={{ borderColor: "var(--g18)" }} />
                   </div>
-                  {dev && fp === "active" && (
+                  {((dev && fp === "active") || (!dev && canFp)) && (
                     <button
                       type="button"
                       className="zx-btn zx-btn-lg w-full"

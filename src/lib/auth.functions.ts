@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { DbUser, Me } from "./types";
-import { meOf } from "./server-helpers";
+import { meOf, userPasskeys } from "./server-helpers";
 
 /* Server functions backed by the GitHub-as-database store (gh-store.server.ts).
  * Handlers dynamically import the store so its node:crypto / GitHub API code
@@ -17,7 +17,12 @@ const usernameField = z
   .trim()
   .regex(/^[a-zA-Z0-9_]{4,24}$/, "Username must be 4-24 letters, numbers or _");
 const passwordField = z.string().min(6, "Password must be at least 6 characters").max(64);
-const b64 = z.string().min(1).max(512).regex(/^[A-Za-z0-9_-]+$/);
+const b64 = z
+  .string()
+  .min(1)
+  .max(512)
+  .regex(/^[A-Za-z0-9_-]+={0,2}$/)
+  .transform((s) => s.replace(/=+$/, ""));
 
 /* ------------------------------- sign in / up ------------------------------ */
 
@@ -307,7 +312,9 @@ export const ownerAdjustBalance = createServerFn({ method: "POST" })
  * the user's account; unlock only works on the phone that created it. */
 
 const FP_DAYS = 30;
+const MAX_PASSKEYS = 10;
 const fpUntil = () => new Date(Date.now() + FP_DAYS * 86_400_000).toISOString();
+const normId = (id: string) => id.replace(/=+$/, "");
 
 export const fpRegister = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ token: z.string().min(1), credentialId: b64 }).parse(d))
@@ -317,11 +324,15 @@ export const fpRegister = createServerFn({ method: "POST" })
     const v = await s.verifyToken(data.token);
     if (!v) return { ok: false, error: "Session expired — log in again" };
     const until = fpUntil();
+    const entry = { id: data.credentialId, expires_at: until };
     let out: { ok: true; until: string } | Fail = { ok: false, error: "Session expired" };
     await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === v.uid);
       if (!u) return;
-      u.passkey = { id: data.credentialId, expires_at: until };
+      const next = userPasskeys(u).filter((p) => normId(p.id) !== data.credentialId);
+      next.push(entry);
+      u.passkeys = next.slice(-MAX_PASSKEYS);
+      u.passkey = entry;
       out = { ok: true, until };
     }, "fingerprint enabled");
     return out;
@@ -329,20 +340,31 @@ export const fpRegister = createServerFn({ method: "POST" })
 
 export const fpLogin = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ credentialId: b64 }).parse(d))
-  .handler(async ({ data }): Promise<LoginResult & { code?: "UNKNOWN" | "EXPIRED" }> => {
+  .handler(async ({ data }): Promise<(LoginResult & { code?: "UNKNOWN" | "EXPIRED"; until?: string })> => {
     const s = await import("./gh-store.server");
-    if (!s.storageConfigured()) return { ok: false, error: s.storageError(), code: "UNKNOWN" };
-    const { db } = await s.readDb();
-    const u = db.users.find((x) => x.passkey?.id === data.credentialId);
-    if (!u) return { ok: false, error: "This fingerprint is not registered on the panel.", code: "UNKNOWN" };
-    if (u.passkey && new Date(u.passkey.expires_at).getTime() <= Date.now())
+    if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
+    const matchUser = (db: { users: DbUser[] }) => {
+      for (const user of db.users) {
+        const pk = userPasskeys(user).find((p) => normId(p.id) === data.credentialId);
+        if (pk) return { user, pk };
+      }
+      return null;
+    };
+    let hit = matchUser((await s.readDb()).db);
+    if (!hit) {
+      // Retry bypassing the 10s read cache in case a passkey was just registered.
+      hit = matchUser((await s.readDb(true)).db);
+    }
+    if (!hit) return { ok: false, error: "This fingerprint is not registered on the panel.", code: "UNKNOWN" };
+    const { user: u, pk } = hit;
+    if (new Date(pk.expires_at).getTime() <= Date.now())
       return { ok: false, error: "Fingerprint expired — log in with your password, then renew it.", code: "EXPIRED" };
-    if (u.status !== "active") return { ok: false, error: "This account is not active.", code: "UNKNOWN" };
+    if (u.status !== "active") return { ok: false, error: "This account is not active." };
     await s.mutateDb(async (d2) => {
       const x = d2.users.find((y) => y.id === u.id);
       if (x) x.last_active_at = new Date().toISOString();
     }, `fingerprint login: ${u.username}`);
-    return { ok: true, token: await s.signToken(u.id), me: meOf(u) };
+    return { ok: true, token: await s.signToken(u.id), me: meOf(u), until: pk.expires_at };
   });
 
 export const fpRenew = createServerFn({ method: "POST" })
@@ -356,15 +378,19 @@ export const fpRenew = createServerFn({ method: "POST" })
     let out: { ok: true; until: string } | Fail = { ok: false, error: "Fingerprint not found on your account" };
     await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === v.uid);
-      if (!u || u.passkey?.id !== data.credentialId) return;
-      u.passkey = { id: data.credentialId, expires_at: until };
+      if (!u) return;
+      const existing = userPasskeys(u);
+      if (!existing.some((p) => normId(p.id) === data.credentialId)) return;
+      const updated = { id: data.credentialId, expires_at: until };
+      u.passkeys = existing.map((p) => (normId(p.id) === data.credentialId ? updated : p));
+      if (!u.passkey || normId(u.passkey.id) === data.credentialId) u.passkey = updated;
       out = { ok: true, until };
     }, "fingerprint renewed");
     return out;
   });
 
 export const fpUnregister = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ token: z.string().min(1) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ token: z.string().min(1), credentialId: b64.optional() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true } | Fail> => {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) return { ok: false, error: s.storageError() };
@@ -372,7 +398,15 @@ export const fpUnregister = createServerFn({ method: "POST" })
     if (!v) return { ok: false, error: "Session expired — log in again" };
     await s.mutateDb(async (d2) => {
       const u = d2.users.find((x) => x.id === v.uid);
-      if (u) u.passkey = null;
+      if (!u) return;
+      if (data.credentialId) {
+        const remaining = userPasskeys(u).filter((p) => normId(p.id) !== data.credentialId);
+        u.passkeys = remaining;
+        u.passkey = remaining[remaining.length - 1] ?? null;
+      } else {
+        u.passkeys = [];
+        u.passkey = null;
+      }
     }, "fingerprint removed");
     return { ok: true };
   });
