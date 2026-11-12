@@ -257,6 +257,7 @@ function ConnectPage() {
               <div className="space-y-4">
                 <LinkBox label="Website" url={origin} />
                 <LinkBox label="Connect link (this website)" url={link} />
+                <LinkBox label="PHP-panel compatible link (/connect)" url={`${origin}/connect`} />
                 {preview && (
                   <div className="zx-alert warn">
                     <i className="bi bi-exclamation-triangle" />
