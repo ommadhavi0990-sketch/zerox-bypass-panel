@@ -127,7 +127,7 @@ export const keysGenerate = createServerFn({ method: "POST" })
           return;
         }
         for (let i = 0; i < qty; i++) {
-          const license = custom ?? licenseOf(d2);
+          const license = custom ?? licenseOf(d2, u.username, data.hours);
           d2.keys.push({
             id: nextKey(d2),
             license_key: license,
@@ -556,18 +556,30 @@ export const maintenanceSet = createServerFn({ method: "POST" })
 
 /* --------------------- small local helpers (pure-ish) ---------------------- */
 
-function licenseOf(db: { keys: { license_key: string }[] }): string {
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function durationTag(hours: number | null): string {
+  if (hours == null) return "LT";
+  if (hours >= 720 && hours % 720 === 0) return `${hours / 720}M`;
+  if (hours >= 24 && hours % 24 === 0) return `${hours / 24}D`;
+  return `${hours}H`;
+}
+
+function licenseOf(
+  db: { keys: { license_key: string }[] },
+  creator: string,
+  hours: number | null,
+): string {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const prefix = `${creator.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "") || "ZX"}-${durationTag(hours)}`;
   const pick = (n: number) => {
     let out = "";
-    for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < n; i++) out += letters[Math.floor(Math.random() * letters.length)];
     return out;
   };
   for (let i = 0; i < 50; i++) {
-    const k = `ZX${pick(4)}-${pick(4)}-${pick(4)}`;
+    const k = `${prefix}-${pick(6)}`;
     if (!db.keys.some((x) => x.license_key === k)) return k;
   }
-  return `ZX${Date.now().toString(36).toUpperCase()}`;
+  return `${prefix}-${Date.now().toString(36).toUpperCase()}`;
 }
 
 function randCode(len: number): string {
