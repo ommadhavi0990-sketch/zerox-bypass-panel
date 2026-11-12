@@ -39,7 +39,11 @@ export function inr(n: number | null | undefined) {
   return "₹" + Number(n ?? 0).toLocaleString("en-IN");
 }
 
-export const ROLE_LABEL: Record<AppRole, string> = { owner: "Owner", admin: "Admin", reseller: "Reseller" };
+export const ROLE_LABEL: Record<AppRole, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  reseller: "Reseller",
+};
 
 export function isExpired(expiresAt: string | null | undefined, now = Date.now()) {
   return !!expiresAt && new Date(expiresAt).getTime() <= now;
@@ -47,7 +51,13 @@ export function isExpired(expiresAt: string | null | undefined, now = Date.now()
 
 export function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
-  return new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function timeAgo(d: string | null | undefined) {
@@ -87,12 +97,17 @@ export function newRequestId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
-        (+c ^ (Math.random() * 16) >> (+c / 4)).toString(16),
+        (+c ^ ((Math.random() * 16) >> (+c / 4))).toString(16),
       );
 }
 
 /** Cost an admin pays to create a referral: (duration price + credit) × uses. Owner pays nothing. */
-export function referralCost(role: AppRole | null | undefined, durationPrice: number, credit: number, uses: number) {
+export function referralCost(
+  role: AppRole | null | undefined,
+  durationPrice: number,
+  credit: number,
+  uses: number,
+) {
   if (role === "owner") return 0;
   return (Math.max(0, durationPrice) + Math.max(0, credit)) * Math.max(1, uses);
 }

@@ -15,10 +15,18 @@ export function startZxBackground(c: HTMLCanvasElement | null): (() => void) | u
   w.__zxBg = true;
   // Canvas needs plain rgb triples; these mirror the --zx-glow token of each theme.
   const FIRE_RGB = "255,90,20";
-  const THEME_RGB: Record<string, string> = { fire: FIRE_RGB, blue: "56,189,248", purple: "168,85,247" };
+  const THEME_RGB: Record<string, string> = {
+    fire: FIRE_RGB,
+    blue: "56,189,248",
+    purple: "168,85,247",
+  };
   // Secondary aurora tint per theme (mirrors --zx-c).
   const FIRE_RGB2 = "255,196,40";
-  const THEME_RGB2: Record<string, string> = { fire: FIRE_RGB2, blue: "110,120,255", purple: "236,90,190" };
+  const THEME_RGB2: Record<string, string> = {
+    fire: FIRE_RGB2,
+    blue: "110,120,255",
+    purple: "236,90,190",
+  };
 
   const x = c.getContext("2d");
   if (!x) return;
@@ -30,7 +38,12 @@ export function startZxBackground(c: HTMLCanvasElement | null): (() => void) | u
   const frameMs = 1000 / (mobile ? 30 : 60);
   const S_HEX = 46;
 
-  let W = 0, H = 0, raf = 0, last = 0, mx = 0.5, my = 0.5;
+  let W = 0,
+    H = 0,
+    raf = 0,
+    last = 0,
+    mx = 0.5,
+    my = 0.5;
   let theme = document.documentElement.getAttribute("data-zx") || "fire";
   let g = THEME_RGB[theme] ?? FIRE_RGB;
   let g2 = THEME_RGB2[theme] ?? FIRE_RGB2;
@@ -48,7 +61,13 @@ export function startZxBackground(c: HTMLCanvasElement | null): (() => void) | u
     { x: 0.5, y: 0.05, r: 0.45, s: 0.00008, p: 4.2, b: true },
   ];
   // Occasional shooting light streaks.
-  const ST = Array.from({ length: mobile ? 2 : 4 }, () => ({ x: 0, y: 0, v: 0, l: 0, life: -Math.random() * 400 }));
+  const ST = Array.from({ length: mobile ? 2 : 4 }, () => ({
+    x: 0,
+    y: 0,
+    v: 0,
+    l: 0,
+    life: -Math.random() * 400,
+  }));
 
   const P = Array.from({ length: mobile ? 42 : 110 }, () => ({
     x: Math.random() * window.innerWidth,
@@ -142,7 +161,14 @@ export function startZxBackground(c: HTMLCanvasElement | null): (() => void) | u
 
   function draw(t: number) {
     x!.clearRect(0, 0, W, H);
-    const gr = x!.createRadialGradient(W * (0.3 + mx * 0.4), H * (0.25 + my * 0.2), 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.8);
+    const gr = x!.createRadialGradient(
+      W * (0.3 + mx * 0.4),
+      H * (0.25 + my * 0.2),
+      0,
+      W * 0.5,
+      H * 0.5,
+      Math.max(W, H) * 0.8,
+    );
     gr.addColorStop(0, `rgba(${g},.22)`);
     gr.addColorStop(0.5, `rgba(${g},.05)`);
     gr.addColorStop(1, "rgba(0,0,0,0)");
@@ -260,7 +286,10 @@ export function startZxBackground(c: HTMLCanvasElement | null): (() => void) | u
       for (const p of P) {
         p.y -= p.s;
         p.x += Math.sin(t / 900 + p.w) * 0.5;
-        if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+        if (p.y < -10) {
+          p.y = H + 10;
+          p.x = Math.random() * W;
+        }
         const sz = p.r * 7;
         x!.globalAlpha = 0.3 + 0.6 * Math.abs(Math.sin(t / 600 + p.w));
         x!.drawImage(ember, p.x - sz / 2, p.y - sz / 2, sz, sz);
@@ -307,9 +336,15 @@ export function startZxBackground(c: HTMLCanvasElement | null): (() => void) | u
   buildEmber();
   buildAurora();
 
-  const onResize = () => { resize(); if (reduce) draw(0); };
+  const onResize = () => {
+    resize();
+    if (reduce) draw(0);
+  };
   window.addEventListener("resize", onResize, { passive: true });
-  const onMove = (e: PointerEvent) => { mx = e.clientX / W; my = e.clientY / H; };
+  const onMove = (e: PointerEvent) => {
+    mx = e.clientX / W;
+    my = e.clientY / H;
+  };
   if (!mobile) window.addEventListener("pointermove", onMove, { passive: true });
 
   const mo = new MutationObserver(() => {

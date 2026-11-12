@@ -20,7 +20,8 @@ export function randomChallenge(): string {
   return b64u.enc(crypto.getRandomValues(new Uint8Array(32)));
 }
 
-const sha256 = async (d: Uint8Array) => new Uint8Array(await crypto.subtle.digest("SHA-256", d as BufferSource));
+const sha256 = async (d: Uint8Array) =>
+  new Uint8Array(await crypto.subtle.digest("SHA-256", d as BufferSource));
 
 /** WebAuthn ES256 signatures are ASN.1 DER; WebCrypto wants raw r||s (64 bytes). */
 export function derToRaw(der: Uint8Array): Uint8Array {
@@ -47,14 +48,33 @@ export function derToRaw(der: Uint8Array): Uint8Array {
 }
 
 async function importKey(spki: Uint8Array, alg: number): Promise<CryptoKey> {
-  if (alg === -7) return crypto.subtle.importKey("spki", spki as BufferSource, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-  if (alg === -257) return crypto.subtle.importKey("spki", spki as BufferSource, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+  if (alg === -7)
+    return crypto.subtle.importKey(
+      "spki",
+      spki as BufferSource,
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["verify"],
+    );
+  if (alg === -257)
+    return crypto.subtle.importKey(
+      "spki",
+      spki as BufferSource,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
   throw new Error("Unsupported key type");
 }
 
 type ClientData = { type: string; challenge: string; origin: string };
 
-function parseClientData(clientDataJSON: string, type: string, challenge: string, origin: string): ClientData {
+function parseClientData(
+  clientDataJSON: string,
+  type: string,
+  challenge: string,
+  origin: string,
+): ClientData {
   const cd = JSON.parse(new TextDecoder().decode(b64u.dec(clientDataJSON))) as ClientData;
   if (cd.type !== type) throw new Error("Wrong request type");
   if (cd.challenge !== challenge) throw new Error("Challenge mismatch");
@@ -63,16 +83,28 @@ function parseClientData(clientDataJSON: string, type: string, challenge: string
 }
 
 /** Registration: checks the browser really answered OUR challenge on OUR site, and that the key is usable. */
-export async function verifyRegistration(a: { clientDataJSON: string; publicKey: string; alg: number; challenge: string; origin: string }) {
+export async function verifyRegistration(a: {
+  clientDataJSON: string;
+  publicKey: string;
+  alg: number;
+  challenge: string;
+  origin: string;
+}) {
   parseClientData(a.clientDataJSON, "webauthn.create", a.challenge, a.origin);
   await importKey(b64u.dec(a.publicKey), a.alg);
 }
 
 /** Login: full assertion check. Returns the new signature counter. */
 export async function verifyAssertion(a: {
-  publicKey: string; alg: number; storedSignCount: number;
-  authenticatorData: string; clientDataJSON: string; signature: string;
-  rpId: string; challenge: string; origin: string;
+  publicKey: string;
+  alg: number;
+  storedSignCount: number;
+  authenticatorData: string;
+  clientDataJSON: string;
+  signature: string;
+  rpId: string;
+  challenge: string;
+  origin: string;
 }): Promise<{ signCount: number }> {
   parseClientData(a.clientDataJSON, "webauthn.get", a.challenge, a.origin);
   const authData = b64u.dec(a.authenticatorData);
@@ -82,7 +114,8 @@ export async function verifyAssertion(a: {
   const flags = authData[32]!;
   if (!(flags & 0x01)) throw new Error("User not present");
   if (!(flags & 0x04)) throw new Error("Fingerprint not verified");
-  const signCount = ((authData[33]! << 24) | (authData[34]! << 16) | (authData[35]! << 8) | authData[36]!) >>> 0;
+  const signCount =
+    ((authData[33]! << 24) | (authData[34]! << 16) | (authData[35]! << 8) | authData[36]!) >>> 0;
   if (signCount !== 0 || a.storedSignCount !== 0) {
     if (signCount <= a.storedSignCount) throw new Error("Cloned authenticator suspected");
   }
@@ -92,9 +125,20 @@ export async function verifyAssertion(a: {
   signed.set(cdHash, authData.length);
   const key = await importKey(b64u.dec(a.publicKey), a.alg);
   const sig = b64u.dec(a.signature);
-  const ok = a.alg === -7
-    ? await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, derToRaw(sig) as BufferSource, signed as BufferSource)
-    : await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, sig as BufferSource, signed as BufferSource);
+  const ok =
+    a.alg === -7
+      ? await crypto.subtle.verify(
+          { name: "ECDSA", hash: "SHA-256" },
+          key,
+          derToRaw(sig) as BufferSource,
+          signed as BufferSource,
+        )
+      : await crypto.subtle.verify(
+          { name: "RSASSA-PKCS1-v1_5" },
+          key,
+          sig as BufferSource,
+          signed as BufferSource,
+        );
   if (!ok) throw new Error("Fingerprint signature invalid");
   return { signCount };
 }

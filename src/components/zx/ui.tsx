@@ -11,15 +11,41 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export function Card({ children, className = "", style }: { children: ReactNode; className?: string | undefined; style?: React.CSSProperties | undefined }) {
-  return <div className={`zx-card ${className}`} style={style}>{children}</div>;
+export function Card({
+  children,
+  className = "",
+  style,
+}: {
+  children: ReactNode;
+  className?: string | undefined;
+  style?: React.CSSProperties | undefined;
+}) {
+  return (
+    <div className={`zx-card ${className}`} style={style}>
+      {children}
+    </div>
+  );
 }
 
-export function CardHeader({ icon, title, sub, right }: { icon?: string | undefined; title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+export function CardHeader({
+  icon,
+  title,
+  sub,
+  right,
+}: {
+  icon?: string | undefined;
+  title: ReactNode;
+  sub?: ReactNode;
+  right?: ReactNode;
+}) {
   return (
     <div className="zx-card-header">
       <div className="flex items-center gap-3 min-w-0">
-        {icon && <span className="zx-icon-box"><i className={`bi ${icon}`} /></span>}
+        {icon && (
+          <span className="zx-icon-box">
+            <i className={`bi ${icon}`} />
+          </span>
+        )}
         <div className="min-w-0">
           <h6 className="zx-card-title truncate">{title}</h6>
           {sub && <div className="zx-muted text-sm">{sub}</div>}
@@ -30,7 +56,17 @@ export function CardHeader({ icon, title, sub, right }: { icon?: string | undefi
   );
 }
 
-export function Field({ label, error, children, modern }: { label: string; error?: string | undefined; children: ReactNode; modern?: boolean | undefined }) {
+export function Field({
+  label,
+  error,
+  children,
+  modern,
+}: {
+  label: string;
+  error?: string | undefined;
+  children: ReactNode;
+  modern?: boolean | undefined;
+}) {
   return (
     <div>
       <label className={modern ? "zx-label-modern" : "zx-label"}>{label}</label>
@@ -58,10 +94,22 @@ export function Empty({ icon = "bi-inbox", text }: { icon?: string; text: string
   );
 }
 
-export type Column<T> = { key: string; label: string; render: (row: T) => ReactNode; className?: string | undefined; mobileHidden?: boolean | undefined };
+export type Column<T> = {
+  key: string;
+  label: string;
+  render: (row: T) => ReactNode;
+  className?: string | undefined;
+  mobileHidden?: boolean | undefined;
+};
 
 /** Table on desktop, stacked cards on phones — nothing overflows on small screens. */
-export function DataTable<T>({ columns, rows, rowKey, empty, mobileTitle }: {
+export function DataTable<T>({
+  columns,
+  rows,
+  rowKey,
+  empty,
+  mobileTitle,
+}: {
   columns: Column<T>[];
   rows: T[];
   rowKey: (r: T) => string | number;
@@ -74,11 +122,23 @@ export function DataTable<T>({ columns, rows, rowKey, empty, mobileTitle }: {
       <div className="hidden md:block overflow-x-auto">
         <table className="zx-table">
           <thead>
-            <tr>{columns.map((c) => <th key={c.key} className={c.className}>{c.label}</th>)}</tr>
+            <tr>
+              {columns.map((c) => (
+                <th key={c.key} className={c.className}>
+                  {c.label}
+                </th>
+              ))}
+            </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={rowKey(r)}>{columns.map((c) => <td key={c.key} className={c.className}>{c.render(r)}</td>)}</tr>
+              <tr key={rowKey(r)}>
+                {columns.map((c) => (
+                  <td key={c.key} className={c.className}>
+                    {c.render(r)}
+                  </td>
+                ))}
+              </tr>
             ))}
           </tbody>
         </table>
@@ -87,9 +147,14 @@ export function DataTable<T>({ columns, rows, rowKey, empty, mobileTitle }: {
         {rows.map((r) => (
           <div className="zx-mobile-row" key={rowKey(r)}>
             {mobileTitle && <div className="mb-2">{mobileTitle(r)}</div>}
-            {columns.filter((c) => !c.mobileHidden).map((c) => (
-              <div className="zx-kv" key={c.key}><span>{c.label}</span><span>{c.render(r)}</span></div>
-            ))}
+            {columns
+              .filter((c) => !c.mobileHidden)
+              .map((c) => (
+                <div className="zx-kv" key={c.key}>
+                  <span>{c.label}</span>
+                  <span>{c.render(r)}</span>
+                </div>
+              ))}
           </div>
         ))}
       </div>
@@ -98,7 +163,12 @@ export function DataTable<T>({ columns, rows, rowKey, empty, mobileTitle }: {
 }
 
 export function useConfirm() {
-  const [state, setState] = useState<{ title: string; body: string; action: () => unknown; danger?: boolean } | null>(null);
+  const [state, setState] = useState<{
+    title: string;
+    body: string;
+    action: () => unknown;
+    danger?: boolean;
+  } | null>(null);
   const dialog = (
     <AlertDialog open={!!state} onOpenChange={(o) => !o && setState(null)}>
       <AlertDialogContent className="zx-dialog">
@@ -110,7 +180,11 @@ export function useConfirm() {
           <AlertDialogCancel className="zx-btn-ghost">Cancel</AlertDialogCancel>
           <AlertDialogAction
             className={`zx-btn zx-btn-sm ${state?.danger ? "zx-btn-danger" : ""}`}
-            onClick={() => { const a = state?.action; setState(null); void a?.(); }}
+            onClick={() => {
+              const a = state?.action;
+              setState(null);
+              void a?.();
+            }}
           >
             Confirm
           </AlertDialogAction>
@@ -137,16 +211,50 @@ export async function copyText(text: string, label = "Copied") {
 }
 
 export function StatusPill({ status, expired }: { status: string; expired?: boolean | undefined }) {
-  if (status === "banned") return <span className="zx-badge bad"><i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Banned</span>;
-  if (status === "blocked") return <span className="zx-badge warn"><i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Blocked</span>;
-  if (expired) return <span className="zx-badge mute"><i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Expired</span>;
-  return <span className="zx-badge ok"><i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Active</span>;
+  if (status === "banned")
+    return (
+      <span className="zx-badge bad">
+        <i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Banned
+      </span>
+    );
+  if (status === "blocked")
+    return (
+      <span className="zx-badge warn">
+        <i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Blocked
+      </span>
+    );
+  if (expired)
+    return (
+      <span className="zx-badge mute">
+        <i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Expired
+      </span>
+    );
+  return (
+    <span className="zx-badge ok">
+      <i className="bi bi-circle-fill" style={{ fontSize: "0.45rem" }} /> Active
+    </span>
+  );
 }
 
 export function RoleTag({ role }: { role: string | null }) {
-  if (role === "owner") return <span className="zx-badge solid"><i className="bi bi-crown" /> Owner</span>;
-  if (role === "admin") return <span className="zx-badge"><i className="bi bi-shield-check" /> Admin</span>;
-  if (role === "reseller") return <span className="zx-badge mute"><i className="bi bi-person" /> Reseller</span>;
+  if (role === "owner")
+    return (
+      <span className="zx-badge solid">
+        <i className="bi bi-crown" /> Owner
+      </span>
+    );
+  if (role === "admin")
+    return (
+      <span className="zx-badge">
+        <i className="bi bi-shield-check" /> Admin
+      </span>
+    );
+  if (role === "reseller")
+    return (
+      <span className="zx-badge mute">
+        <i className="bi bi-person" /> Reseller
+      </span>
+    );
   return <span className="zx-badge mute">—</span>;
 }
 

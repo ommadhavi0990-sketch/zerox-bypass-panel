@@ -64,7 +64,10 @@ function MaintenanceCard() {
 
   async function apply(enable: boolean) {
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
     const text = msg.trim();
     if (enable && text.length < 3) {
       toast.error("Write a reason first");
@@ -73,7 +76,10 @@ function MaintenanceCard() {
     setBusy(true);
     try {
       const r = await maintenanceSet({ data: { token, on: enable, message: text } });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       setOn(enable);
       toast.success(
         enable ? "App is now in maintenance — logins blocked" : "App is live again — logins open",

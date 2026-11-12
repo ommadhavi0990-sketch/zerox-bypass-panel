@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { keyBatchCost, referralCost } from "@/lib/zx";
-import type { DbKey, DbReferral, DbNotice, DbSettings, DbTx, UserRow } from "./types";
+import { isExpired, keyBatchCost, referralCost } from "@/lib/zx";
+import type { Db, DbKey, DbReferral, DbNotice, DbSettings, DbTx, UserRow } from "./types";
 
 /* Data server functions (keys, referrals, users, notices, pricing, stats).
  * All backed by the GitHub-as-database store — see gh-store.server.ts. */
@@ -11,9 +11,7 @@ type Fail = { ok: false; error: string };
 const KEYS_PAGE = 20;
 
 /** Shared auth: verify the session token against db.json. */
-async function authMe(
-  token: string,
-): Promise<
+async function authMe(token: string): Promise<
   | { ok: false; error: string }
   | {
       ok: true;
@@ -28,6 +26,8 @@ async function authMe(
   const { db } = await s.readDb();
   const me = db.users.find((x) => x.id === v.uid);
   if (!me || me.status !== "active") return { ok: false, error: "Session expired — log in again" };
+  if (me.role !== "owner" && isExpired(me.expires_at))
+    return { ok: false, error: "Your referral has expired. Please DM the Owner." };
   return { ok: true, db, me };
 }
 
@@ -95,6 +95,11 @@ export const keysGenerate = createServerFn({ method: "POST" })
       if (price < 0) return { ok: false, error: "Unknown duration plan — pick one from the list" };
       if (data.hours === null && me.role !== "owner")
         return { ok: false, error: "Lifetime keys are Owner-only" };
+      if (me.role === "reseller") {
+        if (data.qty > 1)
+          return { ok: false, error: "Resellers can generate only 1 key at a time" };
+        if (data.customKey) return { ok: false, error: "Resellers cannot create custom keys" };
+      }
 
       const qty = data.customKey ? 1 : data.qty;
       const cost = keyBatchCost(me.role, price, qty);
@@ -252,7 +257,7 @@ export const referralCreate = createServerFn({ method: "POST" })
     if (!a.ok) return a;
     const { db, me } = a;
     if (me.role !== "owner" && me.role !== "admin")
-      return { ok: false, error: "Only Owner/Admin can create referrals" };
+      return { ok: false, error: "Resellers cannot generate referrals" };
     if (me.role !== "owner" && data.role !== "reseller")
       return { ok: false, error: "Admins can only create RESELLER referrals" };
 
@@ -563,10 +568,7 @@ function durationTag(hours: number | null): string {
   return `${hours}H`;
 }
 
-function licenseOf(
-  db: { keys: { license_key: string }[] },
-  hours: number | null,
-): string {
+function licenseOf(db: { keys: { license_key: string }[] }, hours: number | null): string {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const prefix = `ZEROX-${durationTag(hours)}`;
   const pick = (n: number) => {
@@ -588,21 +590,21 @@ function randCode(len: number): string {
   return out;
 }
 
-function nextKey(db: { seq: Record<string, number> }): number {
+function nextKey(db: { seq: Db["seq"] }): number {
   db.seq.key = (db.seq.key || 0) + 1;
   return db.seq.key;
 }
-function nextReferral(db: { seq: Record<string, number> }): number {
+function nextReferral(db: { seq: Db["seq"] }): number {
   db.seq.referral = (db.seq.referral || 0) + 1;
   return db.seq.referral;
 }
-function nextNotice(db: { seq: Record<string, number> }): number {
+function nextNotice(db: { seq: Db["seq"] }): number {
   db.seq.notice = (db.seq.notice || 0) + 1;
   return db.seq.notice;
 }
 
 function txPush(
-  db: { transactions: DbTx[]; seq: Record<string, number> },
+  db: { transactions: DbTx[]; seq: Db["seq"] },
   user: { id: string; username: string },
   kind: string,
   details: string,

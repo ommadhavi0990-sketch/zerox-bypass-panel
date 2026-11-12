@@ -48,14 +48,20 @@ function PricingPage() {
   async function saveAll(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
     const next = Object.entries(edit)
       .map(([hours, price]) => ({ hours: Number(hours), price: Number(price) }))
       .sort((a, b) => a.hours - b.hours);
     setBusy(true);
     try {
       const r = await settingsUpdate({ data: { token, prices: next } });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       toast.success("Prices saved");
       void qc.invalidateQueries({ queryKey: ["prices"] });
       void qc.invalidateQueries({ queryKey: ["settings"] });
@@ -69,17 +75,26 @@ function PricingPage() {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
     const amount = Number(newH.amount);
     const unit = newH.unit === "hours" ? 1 : 24;
     const hours = amount * unit;
     const price = Number(newH.price || 0);
-    if (!hours || price < 0) return toast.error("Enter a valid duration and price");
+    if (!hours || price < 0) {
+      toast.error("Enter a valid duration and price");
+      return;
+    }
     setBusy(true);
     try {
       const next = [...(prices ?? []), { hours, price }].sort((a, b) => a.hours - b.hours);
       const r = await settingsUpdate({ data: { token, prices: next } });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       toast.success(`Added ${durationLabel(hours)} · ₹${price}`);
       setNewH({ amount: "", unit: "hours", price: "" });
       void qc.invalidateQueries({ queryKey: ["prices"] });
@@ -96,7 +111,10 @@ function PricingPage() {
     if (!token) return;
     const next = (prices ?? []).filter((p) => p.hours !== hours);
     const r = await settingsUpdate({ data: { token, prices: next } });
-    if (!r.ok) return toast.error(r.error);
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
     toast.success(`Removed ${durationLabel(hours)}`);
     void qc.invalidateQueries({ queryKey: ["prices"] });
     void qc.invalidateQueries({ queryKey: ["settings"] });
@@ -105,20 +123,27 @@ function PricingPage() {
   async function saveTg(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
     try {
       const u = new URL(tgUrl);
       if (u.protocol !== "https:" && u.protocol !== "http:")
         throw new Error("Use a full https://t.me/… link");
     } catch {
-      return toast.error("Enter a valid Telegram link");
+      toast.error("Enter a valid Telegram link");
+      return;
     }
     setBusy(true);
     try {
       const r = await settingsUpdate({
         data: { token, telegram: { url: tgUrl.trim(), handle: tgHandle.trim() } },
       });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       toast.success("Telegram link saved");
       void qc.invalidateQueries({ queryKey: ["settings"] });
     } catch (err) {

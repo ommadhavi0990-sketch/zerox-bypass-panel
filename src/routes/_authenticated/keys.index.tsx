@@ -60,7 +60,10 @@ function KeysPage() {
     const token = getToken();
     if (!token) return;
     const r = await keysDelete({ data: { token, id } });
-    if (!r.ok) return toast.error(r.error);
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
     toast.success("Key deleted");
     refresh();
   }
@@ -68,7 +71,10 @@ function KeysPage() {
     const token = getToken();
     if (!token) return;
     const r = await keysResetDevices({ data: { token, id } });
-    if (!r.ok) return toast.error(r.error);
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
     toast.success("Devices reset");
     refresh();
   }
@@ -76,7 +82,10 @@ function KeysPage() {
     const token = getToken();
     if (!token) return;
     const r = await keysDeleteExpired({ data: { token } });
-    if (!r.ok) return toast.error(r.error);
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
     toast.success(r.deleted ? `${r.deleted} expired key(s) deleted` : "No expired keys");
     refresh();
   }

@@ -1,7 +1,13 @@
 import { createContext, useContext } from "react";
 import type { AppRole, Profile } from "@/lib/zx";
 
-export type MeCtx = { userId: string; profile: Profile; role: AppRole | null; isOwner: boolean; isAdmin: boolean };
+export type MeCtx = {
+  userId: string;
+  profile: Profile;
+  role: AppRole | null;
+  isOwner: boolean;
+  isAdmin: boolean;
+};
 export const MeContext = createContext<MeCtx | null>(null);
 
 export function useMe(): MeCtx {

@@ -49,11 +49,19 @@ function GeneratePage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selected) return toast.error("Pick a duration plan first");
+    if (!selected) {
+      toast.error("Pick a duration plan first");
+      return;
+    }
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
-    if (custom && canBulkCustom && customKey.trim().length < 4)
-      return toast.error("Custom key name must be at least 4 characters");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
+    if (custom && canBulkCustom && customKey.trim().length < 4) {
+      toast.error("Custom key name must be at least 4 characters");
+      return;
+    }
     setBusy(true);
     try {
       const r = await keysGenerate({

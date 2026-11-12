@@ -71,7 +71,7 @@ function EditUser() {
     setLifetime(!u.expires_at);
     setExpires(toLocalInput(u.expires_at));
     setRefLimit(u.ref_limit);
-  }, [u?.id, u?.status, u?.role, u?.expires_at, u?.ref_limit]);
+  }, [u]);
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["users"] });
@@ -82,7 +82,10 @@ function EditUser() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
     setBusy(true);
     try {
       const r = await ownerUpdateUser({
@@ -95,7 +98,10 @@ function EditUser() {
           ref_limit: refLimit,
         },
       });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       toast.success("Account updated");
       refresh();
     } catch (err) {
@@ -108,14 +114,23 @@ function EditUser() {
   async function adjust(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
-    if (!amount) return toast.error("Enter an amount");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
+    if (!amount) {
+      toast.error("Enter an amount");
+      return;
+    }
     setBusy(true);
     try {
       const r = await ownerAdjustBalance({
         data: { token, userId: id, mode, amount, note: note.trim() || undefined },
       });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       toast.success(`Balance ${r.balance ? inr(r.balance) : "₹0"}`);
       setAmount(0);
       setNote("");
@@ -129,7 +144,11 @@ function EditUser() {
 
   async function quickStatus(s: AccountStatus) {
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
+    if (!u) return;
     setBusy(true);
     try {
       const r = await ownerUpdateUser({
@@ -137,12 +156,16 @@ function EditUser() {
           token,
           userId: id,
           role: u.role,
-          status,
+          status: s,
           expires_at: lifetime ? null : expires || null,
           ref_limit: refLimit,
         },
       });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      setStatus(s);
       toast.success(`Status set to ${statusLabel(s)}`);
       refresh();
     } catch (err) {
@@ -159,8 +182,14 @@ function EditUser() {
   async function setPassword(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
-    if (pw.length < 6) return toast.error("Password must be at least 6 characters");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
+    if (pw.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
     setBusy(true);
     try {
       const res = await ownerSetPassword({ data: { token, userId: id, password: pw } });

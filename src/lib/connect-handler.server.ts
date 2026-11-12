@@ -78,7 +78,11 @@ async function handleVerify(params: Record<string, string>): Promise<Response> {
     const s = await import("./gh-store.server");
     if (!s.storageConfigured()) {
       return json(
-        { status: false, reason: "SERVER NOT CONFIGURED", message: "Panel storage not configured on server" },
+        {
+          status: false,
+          reason: "SERVER NOT CONFIGURED",
+          message: "Panel storage not configured on server",
+        },
         200,
       );
     }
@@ -100,10 +104,26 @@ async function handleVerify(params: Record<string, string>): Promise<Response> {
     }
 
     const now = Date.now();
-    const key = db.keys.find((k) => k.license_key === parsed.user_key);
+    const key = db.keys.find(
+      (k) => k.license_key.toUpperCase() === parsed.user_key.trim().toUpperCase(),
+    );
     if (!key) {
       return json(
-        { status: false, reason: "USER OR GAME NOT REGISTERED", message: "This license key does not exist" },
+        {
+          status: false,
+          reason: "USER OR GAME NOT REGISTERED",
+          message: "This license key does not exist",
+        },
+        200,
+      );
+    }
+    if (key.game.trim().toLowerCase() !== parsed.game.trim().toLowerCase()) {
+      return json(
+        {
+          status: false,
+          reason: "USER OR GAME NOT REGISTERED",
+          message: "This license key does not belong to this game",
+        },
         200,
       );
     }
@@ -198,7 +218,11 @@ export const connectHandlers = {
       return handleVerify(params);
     }
     return json(
-      { status: false, reason: "NO_KEY", message: "Send user_key + serial to validate a license key" },
+      {
+        status: false,
+        reason: "NO_KEY",
+        message: "Send user_key + serial to validate a license key",
+      },
       200,
     );
   },

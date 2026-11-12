@@ -16,13 +16,25 @@ export function ThemeSwitcher() {
   function pick(t: string) {
     setTheme(t);
     document.documentElement.setAttribute("data-zx", t);
-    try { localStorage.setItem("zx_theme", t); } catch { /* ignore */ }
+    try {
+      localStorage.setItem("zx_theme", t);
+    } catch {
+      /* ignore */
+    }
   }
 
   return (
     <div className="zx-themes" role="group" aria-label="Theme">
       {THEMES.map(([id, label]) => (
-        <button key={id} type="button" data-t={id} title={label} aria-pressed={theme === id} className={theme === id ? "on" : ""} onClick={() => pick(id)}>
+        <button
+          key={id}
+          type="button"
+          data-t={id}
+          title={label}
+          aria-pressed={theme === id}
+          className={theme === id ? "on" : ""}
+          onClick={() => pick(id)}
+        >
           <i className="dot" />
           <span className="lb">{label}</span>
         </button>

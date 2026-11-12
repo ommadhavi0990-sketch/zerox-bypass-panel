@@ -253,10 +253,19 @@ function CreateUser({ onDone }: { onDone: () => void }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const token = getToken();
-    if (!token) return toast.error("Session expired — log in again");
+    if (!token) {
+      toast.error("Session expired — log in again");
+      return;
+    }
     const h = f.hours === "life" ? null : Number(f.hours);
-    if (!f.username.trim()) return toast.error("Enter a username");
-    if (f.password.length < 6) return toast.error("Password must be at least 6 characters");
+    if (!f.username.trim()) {
+      toast.error("Enter a username");
+      return;
+    }
+    if (f.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
     setBusy(true);
     try {
       const r = await ownerCreateUser({
@@ -269,7 +278,10 @@ function CreateUser({ onDone }: { onDone: () => void }) {
           credit: f.credit,
         },
       });
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
       toast.success(`Account ${r.username} created`);
       void qc.invalidateQueries({ queryKey: ["users"] });
       void qc.invalidateQueries({ queryKey: ["stats"] });

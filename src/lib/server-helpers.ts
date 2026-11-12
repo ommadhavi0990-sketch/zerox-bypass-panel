@@ -26,6 +26,9 @@ export function meOf(u: DbUser): Me {
     uplink: u.uplink,
   };
   const keys = userPasskeys(u);
-  const latest = keys.reduce<string | null>((best, p) => (!best || p.expires_at > best ? p.expires_at : best), null);
+  const latest = keys.reduce<string | null>(
+    (best, p) => (!best || p.expires_at > best ? p.expires_at : best),
+    null,
+  );
   return { userId: u.id, profile, role: u.role, passkeyCount: keys.length, passkeyUntil: latest };
 }

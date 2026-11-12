@@ -10,11 +10,21 @@ export function ZxSplash() {
         <span className="zx-sp-pulse" />
         <span className="zx-sp-ring" />
         <span className="zx-sp-ring2" />
-        <img className="zx-splash-logo" src={logo} alt="" width={104} height={104} decoding="sync" fetchPriority="high" />
+        <img
+          className="zx-splash-logo"
+          src={logo}
+          alt=""
+          width={104}
+          height={104}
+          decoding="sync"
+          fetchPriority="high"
+        />
       </div>
       <div className="lg">ZEROX</div>
       <div className="sub">BYPASS PANEL</div>
-      <div className="bar"><i /></div>
+      <div className="bar">
+        <i />
+      </div>
     </div>
   );
 }
